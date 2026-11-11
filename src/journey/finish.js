@@ -5,8 +5,12 @@
 import * as THREE from 'three';
 import { COMMON } from '../oilpaint/common.js';
 
+// The picture is painted at `scale` of the screen's pixels into a picture of its own, and that is laid over the
+// whole screen. Making it smaller (to keep the frames coming on a slow machine) never touches the screen's own
+// canvas: a canvas that is resized is wiped, and the wiped canvas would be shown for a frame, black.
 export function createFrame(renderer, shared, { samples = 4 } = {}) {
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const inner = size.clone();
   const target = new THREE.WebGLRenderTarget(size.x, size.y, { samples, depthBuffer: true, generateMipmaps: false });
   target.depthTexture = new THREE.DepthTexture(size.x, size.y, THREE.UnsignedIntType);
   target.texture.minFilter = target.texture.magFilter = THREE.LinearFilter;
@@ -80,12 +84,18 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
   scene.add(quad);
   const flat = new THREE.Camera();
 
-  return {
+  const frame = {
     target,
     uniforms,
-    resize() {
+    /** How much of the screen's resolution the picture is painted at (0..1). */
+    scale: 1,
+    /** The size, in pixels, it is painted at. */
+    inner,
+    resize(scale = frame.scale) {
+      frame.scale = scale;
       renderer.getDrawingBufferSize(size);
-      target.setSize(size.x, size.y);
+      inner.set(Math.max(1, Math.round(size.x * scale)), Math.max(1, Math.round(size.y * scale)));
+      if (target.width !== inner.x || target.height !== inner.y) target.setSize(inner.x, inner.y);
       uniforms.uSize.value.copy(size);
     },
     render(world, camera) {
@@ -96,4 +106,5 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
       renderer.render(scene, flat);
     },
   };
+  return frame;
 }
