@@ -67,7 +67,8 @@ export function createProps(shared, opts = {}) {
   // --- the pearls of light, three to a painting: a pearl, a shell of sparks turning about it, a thread of light
   // above it. They are what he gathers; the angel's rope is strung with them ---
   things.pearls = [];
-  for (let i = 0; i < 3; i++) {
+  // (as many as the longest course has: the flight round the mountain)
+  for (let i = 0; i < 15; i++) {
     const bead = createKit(shared, {
       seed: 60 + i, minPx: [3, 4], maxPx: [500, 500], cells: [4, 2], jitter: 0.05, lift: 0.5, uniforms: { uPhase: { value: i * 2.1 } }, decl: 'uniform float uPhase;',
       warp: /* glsl */ `void warp(inout vec3 p, inout vec3 n, inout vec3 d, vec4 fx) { p.y += 0.1 * sin(uTime * 1.5 + uPhase); }`,

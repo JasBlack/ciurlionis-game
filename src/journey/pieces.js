@@ -640,12 +640,15 @@ export function createPieces(shared, { low = false } = {}) {
         kit.dab(V().lerpVectors(pts[k], pts[k + 1], w), UP, V(0, 0, 1), pearl, 0.36, 0.33);
       }
     };
-    const end = V(-0.5, 2.0, 8.4);
-    beads([hand, V(-1.5, 2.9, 3.4), V(-1.2, 1.5, 5.0), V(-0.9, 1.2, 6.6), end], 26);
+    // (the long fall comes down almost to the ground before him, where the pearls of light hang at its end)
+    const end = V(-0.4, -1.1, 7.8);
+    beads([hand, V(-1.5, 3.0, 3.4), V(-1.2, 1.4, 5.2), V(-0.85, 0.2, 6.6), end], 30);
     beads([hand, V(-2.6, 3.6, 1.6), V(-3.6, 4.6, 0.2), V(-3.0, 6.6, -0.6), V(0, 8.6, -0.8), V(3.2, 6.8, -0.4), V(2.3, 4.9, 0.9)], 40);
     kit.fx(0);
     add('angel', kit, { cast: false });
     things.angel.gift = end;
+    // where the three pearls of light she gives hang, along the end of the fall
+    things.angel.orbs = [end.clone(), V(-0.63, -0.45, 7.2), V(-1.03, 0.8, 5.9)];
     things.angel.show(0);
   }
 

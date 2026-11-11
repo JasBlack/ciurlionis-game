@@ -20,7 +20,7 @@ import { Player, TUNING } from '../figure/player.js';
 import { Input } from '../figure/input.js';
 import { Follow } from '../figure/camera.js';
 import { noise } from './noise.js';
-import { createFrame } from './finish.js';
+import { createFrame, STYLES } from './finish.js';
 import { createPainter } from './painter.js';
 import { createBody } from './body.js';
 import { journeyUniforms } from './paint.js';
@@ -143,6 +143,14 @@ lap('figure');
 const frame = createFrame(renderer, shared);
 frame.uniforms.uCanvas.value = q.has('canvas') ? +q.get('canvas') : 0; // no grain laid over the picture: the strokes are its surface
 frame.uniforms.uBorder.value = q.has('border') ? +q.get('border') : 0; // the picture runs to the edge of the screen
+// the finish, after one of his media (?style=0..6); V tries the next
+frame.uniforms.uStyle.value = Math.max(0, Math.min(STYLES.length - 1, Math.round(+q.get('style') || 0)));
+addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyV' || e.repeat || !loaded) return;
+  const n = (frame.uniforms.uStyle.value + 1) % STYLES.length;
+  frame.uniforms.uStyle.value = n;
+  hud.caption('', `Finish ${n} · ${STYLES[n]}  (V for the next)`, 3);
+});
 // Enter: the whole screen, and back
 addEventListener('keydown', (e) => {
   if (e.code !== 'Enter') return;
@@ -208,6 +216,8 @@ ctx.story = story;
 // keys were held toward it, running when it is far and walking the last of the way, until he is there, the keys are
 // touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
 const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
+const aimMark = document.getElementById('aim');
+let aimCheck = 0;
 const caster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitN = new THREE.Vector3(), hitP = new THREE.Vector3();
 /** The ground (or the sea's face) under the screen point (cx, cy), or null if the sky is there. */
 function groundUnder(cx, cy, max = 300) {
@@ -257,6 +267,10 @@ function tick(dt) {
   // a click is a place to walk to once the journey has begun and while he is his own master (not on the salamander)
   input.clickable = !story.waiting && !story.frozen && !ctx.scripted;
   if (input.clickable) for (const c of inp.clicks ?? []) sendTo(c.x, c.y);
+  // the aiming mark, while the mouse is locked for looking: faint where there is no ground under it
+  const aiming = input.clickable && document.pointerLockElement === renderer.domElement;
+  aimMark?.classList.toggle('on', aiming);
+  if (aiming && (aimCheck = (aimCheck + 1) % 6) === 0) aimMark?.classList.toggle('dim', !groundUnder(innerWidth * input.aim.x, innerHeight * input.aim.y));
   steer(inp, dt);
   if (story.frozen) { inp.move.x = inp.move.y = 0; inp.jump = false; }
   if (swim > 0.5) {
@@ -287,13 +301,15 @@ function tick(dt) {
   // moving, he goes onto his front. Either way his chest rides at the surface and his body turns about it.
   stroke += (THREE.MathUtils.clamp((player.speed - 0.25) / 0.6, 0, 1) - stroke) * (1 - Math.exp(-2.4 * dt));
   strokeU = (strokeU + dt * (0.36 + 0.2 * stroke)) % 1;
-  const pitch = swim * (0.12 + 1.0 * stroke);
-  const roll = swim * stroke * 0.24 * Math.sin((strokeU + 0.05) * 6.283); // he rolls toward the arm that reaches
+  // (in the breaststroke he rises a little as his arms pull in under him, and lies flat again for the glide)
+  const ph = (strokeU - 0.4) / 0.35, rise = stroke * (ph > 0 && ph < 1 ? Math.sin(ph * Math.PI) : 0);
+  const pitch = swim * (0.12 + stroke * 1.0 - 0.24 * rise);
+  const roll = 0;
   pose.copy(root);
   if (swim > 0.01) {
     const sea = shared.uSea.value, h = 1.32, sp = Math.sin(pitch), cp = Math.cos(pitch);
     // (he lifts a little as the kick drives him)
-    const chest = sea - 0.1 + 0.035 * Math.sin(time * 2.2) + 0.03 * stroke * Math.sin(strokeU * 12.566);
+    const chest = sea - 0.1 + 0.035 * Math.sin(time * 2.2) + 0.09 * rise;
     pose.x += (root.x - Math.sin(player.yaw) * h * sp - pose.x) * swim;
     pose.z += (root.z - Math.cos(player.yaw) * h * sp - pose.z) * swim;
     pose.y += (chest - h * cp - pose.y) * swim;
@@ -369,6 +385,13 @@ window.lab = {
   go(name) { const s = SPOTS[name]; if (s) this.teleport(...s); },
   /** As a click at screen point (x, y): he is sent to the ground there. */
   click(x, y) { sendTo(x, y); },
+  /** The picture now on the screen, finished in each style in turn: [dataURL, ...] (for comparing them). */
+  finishes(list = STYLES.map((_, i) => i)) {
+    const was = frame.uniforms.uStyle.value, out = [];
+    for (const n of list) { frame.uniforms.uStyle.value = n; frame.present(); out.push(renderer.domElement.toDataURL('image/png')); }
+    frame.uniforms.uStyle.value = was; frame.present();
+    return out;
+  },
   /** Paints the picture at r pixels a CSS pixel, as the governor would. */
   resolution(r) { setResolution(r); },
   walkTo,

@@ -4,7 +4,9 @@
 // way into the sunset to the horn-harp; wakes in the kings' garden, where the child takes his hand, and goes down
 // to the pond; rides the salamander down the canal, through the gate, and flies it up to the mountain; and climbs
 // the golden stair to the angel, who gives him the pearls strung. Then the sea rises over the mountain, he swims,
-// and it begins again. If he is long without finding a pearl, sparks leave him and drift the way it lies.
+// and it begins again. If he is long without finding a pearl, sparks leave him and drift the way it lies. In the
+// flight the pearls are a course, round the whole mountain and back, shown a few at a time; at the summit there are
+// none to look for: the angel comes when he is there, and the pearls she gives hang at the end of her rope.
 import * as THREE from 'three';
 import { PLACES } from './way.js';
 import { heightAt, landAt, STAIR } from './land.js';
@@ -25,7 +27,16 @@ export function createStory(ctx) {
   const sea = () => shared.uSea.value;
   const groundAt = (x, z) => Math.max(heightAt(x, z), sea());
   const stairYaw = Math.atan2(STAIR.dx, STAIR.dz);
-  const D = P.dandelion, K = T.king.knee, Tr = P.terrace, S = P.summit;
+  const D = P.dandelion, K = T.king.knee, Tr = P.terrace, S = P.summit, Mt = P.mountain;
+  // the flight's course: two on the canal, one past the gate, then round the mountain (an ellipse, drawn in on the
+  // east where the sea's edge is near) a full turn, climbing, back to where it began, and one before the ring.
+  // [x, z, height, size]
+  const COURSE = [[150, P.canalZ, 1.6, 2.4], [226, P.canalZ, 1.6, 2.4], [300, P.canalZ, 14, 3]];
+  for (const [deg, h] of [[245, 70], [281, 88], [317, 102], [353, 110], [389, 114], [425, 116], [461, 118], [497, 118], [533, 118], [569, 118], [605, 120]]) {
+    const a = deg * Math.PI / 180;
+    COURSE.push([Mt.x + 130 * Math.cos(a), Mt.z + 150 * Math.sin(a), h, 3]);
+  }
+  COURSE.push([315, -225, 127, 3]);
 
   // start: where he stands and what he faces. ok: what the land map says of ground that belongs to the level.
   // pearls: [x, z, how high over the ground or the water, size]; in the flight the third number is the height itself.
@@ -51,13 +62,13 @@ export function createStory(ctx) {
       pearls: [[24, -226, 1.3], [K.x, K.z, 1.5], [6, -296, 1.3]],
     },
     {
-      id: 'flight', title: 'V · Salamandra', sub: 'The Salamander — down the canal and through the gate; catch the pearls as it flies', opened: 'The great ring opens on the mountain', flight: true,
-      pearls: [[226, P.canalZ, 1.6, 2.4], [312, P.canalZ, 15, 3], [350, -268, 86, 3]],
+      id: 'flight', title: 'V · Salamandra', sub: 'The Salamander — down the canal, through the gate, and round the whole mountain on the pearls of light', opened: 'The great ring opens on the mountain', flight: true, course: true,
+      pearls: COURSE,
     },
     {
-      id: 'offering', title: 'VI · Auka', sub: 'The Offering — three pearls, up the golden stair', opened: 'The cloud opens: the angel is coming down',
-      start: [Tr.x - 3, Tr.z - 5, STAIR.ax, STAIR.az], ok: (m) => m[3] > 0.2,
-      pearls: [[Tr.x + STAIR.dz * 12, Tr.z - STAIR.dx * 12, 1.3], [STAIR.ax + STAIR.dx * STAIR.len * 0.5, STAIR.az + STAIR.dz * STAIR.len * 0.5, 1.5], [S.x - STAIR.dx * 5, S.z - STAIR.dz * 5, 1.4]],
+      id: 'offering', title: 'VI · Auka', sub: 'The Offering — climb the golden stair to the summit', opened: '',
+      start: [Tr.x - 3, Tr.z - 5, STAIR.ax, STAIR.az], ok: (m) => m[3] > 0.2, gift: true,
+      pearls: [[0, 0, 0, 0.8], [0, 0, 0, 0.8], [0, 0, 0, 0.8]],
     },
   ];
   // where each level's ring of light stands: [x, base y, z, yaw, scale]
@@ -72,8 +83,8 @@ export function createStory(ctx) {
 
   let level = -1, phase = 'boot', clock = 0, washGoal = 0, washRate = 1, after = null, started = false, frozen = false;
   let portal = null; // { centre: Vector3, reach }
-  let got = 0, open = 0, idle = 0, hint = 0;
-  const pearls = [0, 1, 2].map(() => ({ pos: V(), k: 1, got: false, t: 0 }));
+  let got = 0, open = 0, idle = 0, hint = 0, total = 3, ahead = 0; // ahead: on a course, the first still to come
+  const pearls = T.pearls.map(() => ({ pos: V(), k: 1, got: false, missed: false, t: 0, seen: 0, live: false }));
   const lastGood = V(), tmp = V(), tmp2 = V(), up = V();
   const fl = { pos: V(), yaw: Math.PI / 2, pitch: 0, speed: 0, air: false, t: 0, turn: 0, climb: 0, bank: 0 };
   const kid = { pos: V(), yaw: 0, follows: false, speed: 0, near: false, hand: V() };
@@ -91,13 +102,14 @@ export function createStory(ctx) {
     audio.play().catch(() => {});
   }
   addEventListener('keydown', (e) => { if (e.code === 'KeyM' && audio) audio.muted = !audio.muted; });
-  /** A small bell, a step higher for each pearl; three together when the ring opens. */
+  /** A small bell, a step up the scale for each pearl (n), and three together (n < 0) when the way opens. */
+  const SCALE = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760];
   function bell(n) {
     if (audio?.muted || !started) return;
     try {
       bells ??= new (window.AudioContext || window.webkitAudioContext)();
       const now = bells.currentTime;
-      [[523.25], [659.25], [783.99], [523.25, 783.99, 1046.5]][n].forEach((f, i) => {
+      (n < 0 ? [523.25, 783.99, 1046.5] : [SCALE[n % SCALE.length]]).forEach((f, i) => {
         for (const [mult, gain] of [[1, 0.1], [2.01, 0.035], [3.02, 0.014]]) {
           const o = bells.createOscillator(), g = bells.createGain(), t0 = now + i * 0.16;
           o.type = 'sine'; o.frequency.value = f * mult;
@@ -138,13 +150,17 @@ export function createStory(ctx) {
     Object.assign(dandelion, { blow: 0, going: false });
     T.dandelion.uniforms.uBlow.value = 0;
     // the pearls of this painting, and its ring, shut until he has them
-    got = 0; open = 0; idle = 0; hint = 0;
-    L.pearls.forEach((q, i) => {
-      const pl = pearls[i];
-      pl.got = false; pl.t = 0; pl.k = q[3] ?? 1;
+    got = 0; open = 0; idle = 0; hint = 0; ahead = 0; total = L.pearls.length;
+    pearls.forEach((pl, i) => {
+      Object.assign(pl, { got: false, missed: false, t: 0, seen: 0, live: i < total });
+      if (!pl.live) { T.pearls[i].show(0); return; }
+      const q = L.pearls[i];
+      pl.k = q[3] ?? 1;
       pl.pos.set(q[0], L.flight ? q[2] : groundAt(q[0], q[1]) + q[2], q[1]);
       T.pearls[i].set(pl.pos.x, pl.pos.y, pl.pos.z, pl.k);
-      T.pearls[i].show(1);
+      // (a course shows its first few; the angel's are not there until she is)
+      pl.seen = L.gift ? 0 : L.course && i >= 3 ? 0 : 1;
+      T.pearls[i].show(pl.seen);
     });
     T.motes.show(0);
     const r = ring(n);
@@ -170,34 +186,44 @@ export function createStory(ctx) {
     }
     lastGood.set(x, 0, z);
     ctx.mood.update(0, ctx.zoneAt(x, z), 0);
-    if (started) { hud.caption(L.title, L.sub, 11); hud.pearls(0, 3); }
+    if (started) { hud.caption(L.title, L.sub, 11); hud.pearls(0, total); }
   }
   const next = () => { const to = level + 1; transit(() => enter(to)); };
 
+  /** True when this painting's pearls are done with (for a course: its last is taken). */
+  const done = () => (LEVELS[level].course ? ahead >= total : got >= total);
   /** The pearls: taken when he comes to them. Returns the nearest one still to be found, or null. */
   function gather(dt, from, flying) {
+    const L = LEVELS[level];
     let near = null, nd = Infinity;
-    pearls.forEach((pl, i) => {
-      if (pl.got) {
-        // taken, it rises, swells and is gone
+    for (let i = 0; i < total; i++) {
+      const pl = pearls[i];
+      if (pl.got || pl.missed) {
         if (pl.t < 1) {
           pl.t = Math.min(1, pl.t + dt / 0.8);
-          T.pearls[i].set(pl.pos.x, pl.pos.y + 1.8 * pl.k * pl.t * pl.t, pl.pos.z, pl.k * (1 + 1.5 * pl.t));
-          T.pearls[i].show(1 - pl.t);
+          // taken, it rises, swells and is gone; passed by (on a course), it only fades
+          if (pl.got) T.pearls[i].set(pl.pos.x, pl.pos.y + 1.8 * pl.k * pl.t * pl.t, pl.pos.z, pl.k * (1 + 1.5 * pl.t));
+          T.pearls[i].show((1 - pl.t) * (pl.got ? 1 : pl.seen));
         }
-        return;
+        continue;
       }
+      // which can be seen: on a course the next three, at the summit those the angel has brought
+      const shown = L.gift ? angel.here && !angel.given : L.course ? i < ahead + 3 : true;
+      if (L.course || L.gift) { pl.seen = damp(pl.seen, shown ? 1 : 0, 2.5, dt); T.pearls[i].show(pl.seen); }
+      if (!shown) continue;
       const flat = Math.hypot(from.x - pl.pos.x, from.z - pl.pos.z), dy = Math.abs(from.y + (flying ? 1 : 1.1) - pl.pos.y);
-      if (flat < (flying ? 6 : 1.9) && dy < (flying ? 7 : 4)) {
-        pl.got = true; got++; idle = 0;
-        hud.pearls(got, 3);
-        bell(got === 3 ? 3 : got - 1);
-        if (got === 3) hud.caption('', LEVELS[level].opened, 7);
-        return;
+      if (pl.seen > 0.3 && flat < (flying ? 8 : 1.9) && dy < (flying ? 8 : 4)) {
+        pl.got = true; pl.t = 0; got++; idle = 0;
+        // (on a course, any before it that were flown past are gone)
+        if (L.course) { for (let j = ahead; j < i; j++) if (!pearls[j].got) { pearls[j].missed = true; pearls[j].t = 0; } ahead = i + 1; }
+        hud.pearls(got, total);
+        bell(done() ? -1 : got - 1);
+        if (done() && L.opened) hud.caption('', L.opened, 7);
+        continue;
       }
       const d = Math.hypot(flat, dy);
       if (d < nd) { nd = d; near = pl; }
-    });
+    }
     return near;
   }
 
@@ -217,6 +243,8 @@ export function createStory(ctx) {
       }
     } else {
       fl.speed = damp(fl.speed, 17 * boost, 1.2, dt);
+      // (it goes where he looks; A and D turn the look, for those without a mouse)
+      follow.yaw -= clamp(inp.move.x, -1, 1) * 1.1 * dt;
       fl.yaw += wrap(follow.yaw - fl.yaw) * Math.min(1, 1.9 * dt);
       const want = clamp(-(follow.pitch - 0.3) * 1.3 + (fl.t < 3.5 ? 0.4 : 0), -0.7, 0.75); // at first it rises by itself
       fl.pitch = damp(fl.pitch, want, 2.2, dt);
@@ -265,7 +293,7 @@ export function createStory(ctx) {
     get waiting() { return !started; },
     get level() { return level; },
     /** For looking at it from a console: where things stand. */
-    get state() { return { level, phase, got, open, hint, idle, pearls: pearls.map((q) => [+q.pos.x.toFixed(1), +q.pos.y.toFixed(1), +q.pos.z.toFixed(1), q.got]), portal: portal?.centre.toArray().map((v) => +v.toFixed(1)), fl, finale, angel, kid }; },
+    get state() { return { level, phase, got, total, ahead, open, hint, idle, pearls: pearls.slice(0, total).map((q) => [+q.pos.x.toFixed(1), +q.pos.y.toFixed(1), +q.pos.z.toFixed(1), q.got, q.missed]), portal: portal?.centre.toArray().map((v) => +v.toFixed(1)), fl, finale, angel, kid }; },
     enter,
     /** at: a level's id or number to start there (no title); otherwise the journey from its beginning. */
     begin(at) {
@@ -283,7 +311,7 @@ export function createStory(ctx) {
         started = true; frozen = false;
         hud.begin();
         hud.caption(LEVELS[0].title, LEVELS[0].sub, 11);
-        hud.pearls(got, 3);
+        hud.pearls(got, total);
         music();
         removeEventListener('pointerdown', go); removeEventListener('keydown', go);
       };
@@ -340,12 +368,21 @@ export function createStory(ctx) {
           // at his left side, half a step behind
           const tx = root.x + fz * 0.46 - fx * 0.14, tz = root.z - fx * 0.46 - fz * 0.14;
           const d = Math.hypot(tx - kp.x, tz - kp.z), v = Math.min(d * 11, 9.5);
-          if (d > 0.01) { const step = Math.min(v * dt, d); kp.x += (tx - kp.x) / d * step; kp.z += (tz - kp.z) / d * step; }
+          // (it does not go into the water: at the edge it waits for him)
+          const ox = kp.x, oz = kp.z;
+          if (d > 0.01) {
+            const step = Math.min(v * dt, d), nx = kp.x + (tx - kp.x) / d * step, nz = kp.z + (tz - kp.z) / d * step;
+            if (heightAt(nx, nz) > sea() - 0.04) { kp.x = nx; kp.z = nz; }
+            else if (heightAt(nx, kp.z) > sea() - 0.04) kp.x = nx;
+            else if (heightAt(kp.x, nz) > sea() - 0.04) kp.z = nz;
+          }
           kid.yaw += wrap((d > 0.6 ? Math.atan2(tx - kp.x, tz - kp.z) : player.yaw) - kid.yaw) * Math.min(1, 9 * dt);
-          kid.speed = damp(kid.speed, Math.max(v, d < 0.6 ? player.speed : 0), 8, dt);
+          const moved = dt > 0 ? Math.hypot(kp.x - ox, kp.z - oz) / dt : 0;
+          kid.speed = damp(kid.speed, Math.max(Math.min(v, moved), d < 0.6 ? player.speed : 0), 8, dt);
           kid.near = d < 0.75;
         }
-        kp.y = groundAt(kp.x, kp.z);
+        // (running down into the pond, it goes into the water and under it)
+        kp.y = morph.on ? Math.max(heightAt(kp.x, kp.z), sea() - 1.4) : groundAt(kp.x, kp.z);
         const km = M4(kp.x, kp.y, kp.z, kid.yaw, KID);
         T.kid.setMatrix(km, KID);
         T.kid.uniforms.uWalk.value = Math.min(1, kid.speed / 1.1);
@@ -365,26 +402,36 @@ export function createStory(ctx) {
       } else if (level === 4) {
         if (phase === 'play') fly(dt, inp);
       } else if (level === 5) {
-        // when he has the three pearls the cloud opens, and the angel comes down flying with the rope of them
+        // when he comes up onto the summit the cloud opens, and the angel comes down flying with the rope of pearls;
+        // at its end, low before him, hang three pearls of light. When he has taken them she goes, and the sea rises
         const ax = S.x + STAIR.dx * 6, az = S.z + STAIR.dz * 6;
-        if (!angel.called && got >= 3) { angel.called = true; T.angel.show(1); }
+        if (!angel.called && Math.hypot(root.x - S.x, root.z - S.z) < 24 && root.y > S.y - 5) {
+          angel.called = true; T.angel.show(1);
+          hud.caption('Auka', 'The cloud opens: the angel is coming down', 7);
+        }
         if (angel.called) {
           angel.t = Math.min(1, angel.t + dt / 9);
           // (she wheels down out of the cloud on her wings, and stands up in the air before him)
           const e = 1 - Math.pow(1 - angel.t, 3), air = 1 - e, turn = air * 5.2;
-          const y = S.y + 2.4 + 52 * air + 0.35 * Math.sin(clock * 0.9);
+          const y = S.y + 1.8 + 52 * air + 0.3 * Math.sin(clock * 0.9);
           const x = ax + Math.sin(turn) * 26 * air, z = az + Math.cos(turn) * 26 * air;
           const m = M4(x, y, z, stairYaw + Math.PI + turn * 0.8, 1, 1.05 * Math.min(1, air * 2.2), 0.3 * Math.sin(turn) * air);
           T.angel.setMatrix(m, 1);
           angel.gift.copy(T.angel.gift).applyMatrix4(m);
           angel.here = angel.t > 0.94;
+          // the pearls hang where her rope ends, and sway with her, until each is taken
+          T.angel.orbs.forEach((o, i) => {
+            const pl = pearls[i];
+            if (pl.got) return;
+            pl.pos.copy(o).applyMatrix4(m);
+            T.pearls[i].set(pl.pos.x, pl.pos.y, pl.pos.z, pl.k);
+          });
           if (angel.here && !angel.given) {
             const d = Math.hypot(root.x - angel.gift.x, root.z - angel.gift.z);
             ctx.reach.want = d < 5 ? 1 : 0;
-            ctx.reach.target.copy(angel.gift);
-            if (d < 2.3) {
+            ctx.reach.target.copy(pearls.find((q, i) => i < total && !q.got)?.pos ?? angel.gift);
+            if (got >= total) {
               angel.given = true;
-              bell(3);
               hud.caption('Perlai', 'The pearls are yours. The sea is rising.', 9);
               Object.assign(finale, { on: true, t: 0, base: root.y, swum: 0, told: false });
             }
@@ -410,9 +457,9 @@ export function createStory(ctx) {
       const from = level === 4 ? fl.pos : root;
       // the pearls, and the sparks that show where the next lies when he has been long without one
       const near = gather(dt, from, level === 4);
-      if (got >= 3 && portal && open < 1) { open = Math.min(1, open + dt / 1.8); T.portal.show(open); }
+      if (done() && portal && open < 1) { open = Math.min(1, open + dt / 1.8); T.portal.show(open); }
       if (playing && !finale.on) idle += dt;
-      const goal = near ? near.pos : portal ? portal.centre : level === 5 && !angel.given ? tmp.set(S.x + STAIR.dx * 6, S.y + 2, S.z + STAIR.dz * 6) : null;
+      const goal = L.course && ahead < total ? pearls[ahead].pos : near ? near.pos : portal ? portal.centre : level === 5 && !angel.given ? tmp.set(S.x + STAIR.dx * 6, S.y + 2, S.z + STAIR.dz * 6) : null;
       hint = damp(hint, playing && goal && idle > (level === 4 ? 14 : HINT_AFTER) ? 1 : 0, 1.2, dt);
       T.motes.show(hint > 0.02 ? hint : 0);
       if (hint > 0.02 && goal) {

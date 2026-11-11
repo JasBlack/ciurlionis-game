@@ -1,7 +1,8 @@
 // Keyboard, mouse and gamepad, read once a frame into one plain state.
 //   move: {x, y} (x right, y forward, length 0..1), walk, sprint, strafe (held),
 //   jump (pressed this frame), look: {x, y} (radians this frame), zoom (wheel steps this frame),
-//   clicks: [{x, y}] (quick clicks or taps on the picture this frame, in screen pixels)
+//   clicks: [{x, y, aim}] (quick clicks or taps on the picture this frame, in screen pixels; aim: made with the mouse
+//   locked, at the aiming mark)
 export class Input {
   constructor(el, { pads = true } = {}) {
     this.el = el;
@@ -14,12 +15,15 @@ export class Input {
     this.sensitivity = 0.0022;
     this.override = null; // scripted input for captures
     this.lockable = true;
-    // A quick click (or tap) on the picture is a place to walk to: it is kept in `clicks` (screen pixels) when the
-    // game says a click means that (`clickable`, as it was when the button went down). Pressed and dragged, the left
-    // button (or a finger) looks about instead, as the right button does. L locks the mouse for looking.
+    // The mouse looks about: a click on the picture locks it to the picture (as games do), and from then on moving it
+    // turns the eye; Esc lets it go. With it locked, a click is a place to walk to, at the aiming mark (`aim`, as a
+    // fraction of the screen). Without it (a finger, or a browser that will not lock), a quick click or tap is a place
+    // to walk to where it lands, and a press dragged looks about. Clicks count only when the game says a click means a
+    // place (`clickable`, as it was when the button went down). L locks or frees the mouse as well.
     this.clicks = [];
     this.clickable = false;
     this.press = null;
+    this.aim = { x: 0.5, y: 0.66 };
     const typing = () => document.activeElement?.tagName === 'INPUT';
     const locked = () => document.pointerLockElement === el;
     const down = (e) => {
@@ -44,13 +48,19 @@ export class Input {
       if (locked() || this.mouse.right) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; }
     });
     el.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || locked()) return;
+      if (e.button !== 0) return;
+      if (locked()) {
+        if (this.clickable) this.clicks.push({ x: innerWidth * this.aim.x, y: innerHeight * this.aim.y, aim: true });
+        return;
+      }
       this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), drag: false, armed: this.clickable };
       el.setPointerCapture?.(e.pointerId);
+      // (a mouse click locks it for looking; the place it was clicked on is still walked to)
+      if (e.pointerType === 'mouse' && this.lockable) el.requestPointerLock?.()?.catch?.(() => {});
     });
     el.addEventListener('pointermove', (e) => {
       const p = this.press;
-      if (!p || e.pointerId !== p.id || locked()) return;
+      if (!p || e.pointerId !== p.id || locked()) { if (p && locked()) p.drag = false; return; }
       if (!p.drag && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 7) { p.drag = true; el.classList.add('dragging'); }
       if (p.drag && !this.mouse.right) { this.mouse.x += e.clientX - p.lx; this.mouse.y += e.clientY - p.ly; }
       p.lx = e.clientX; p.ly = e.clientY;
