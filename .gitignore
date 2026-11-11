@@ -1,0 +1,9 @@
+node_modules/
+dist/
+vendor/
+*.mp4
+*.zip
+*.log
+.env
+.DS_Store
+Thumbs.db

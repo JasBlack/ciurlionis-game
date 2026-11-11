@@ -1,0 +1,5 @@
+{
+	"mode": "browser",
+	"test": { "move_keys": ["KeyW"] },
+	"block": { "controls": [], "presets": [], "triggers": [] }
+}

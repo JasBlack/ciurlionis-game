@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Čiurlionis · Kelionė</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root { --card: #e9dcc0; --ink: #2b2530; --gold: #f1d48a; }
+      html, body { margin: 0; height: 100%; background: #1d1a22; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; }
+      #view, #view canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      #wash { position: fixed; inset: 0; background: var(--card); opacity: 0; pointer-events: none; }
+      #loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--card); color: #6b5a48; font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; }
+      #title { position: fixed; inset: 0; display: none; place-items: end center; pointer-events: none; transition: opacity 2.4s; }
+      #title.on { display: grid; }
+      #title.gone { opacity: 0; }
+      #title div { margin-bottom: 9vh; text-align: center; color: #fff6dd; text-shadow: 0 1px 14px rgba(40, 30, 60, 0.75), 0 0 2px rgba(40, 30, 60, 0.6); }
+      #title h1 { margin: 0; font-weight: normal; font-size: clamp(34px, 6.2vw, 84px); letter-spacing: 0.3em; text-indent: 0.3em; }
+      #title h2 { margin: 0.5em 0 0; font-weight: normal; font-style: italic; font-size: clamp(15px, 1.7vw, 22px); letter-spacing: 0.12em; }
+      #title p { margin: 2.2em 0 0; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.85; }
+      #caption { position: fixed; left: 0; right: 0; top: 9vh; text-align: center; color: #fff6dd; opacity: 0; transition: opacity 1.8s; pointer-events: none;
+        text-shadow: 0 1px 12px rgba(40, 30, 60, 0.7), 0 0 2px rgba(40, 30, 60, 0.55); }
+      #caption.on { opacity: 1; }
+      #caption b { display: block; font-weight: normal; font-size: clamp(22px, 2.8vw, 38px); letter-spacing: 0.22em; text-indent: 0.22em; }
+      #caption i { display: block; margin-top: 0.5em; font-size: clamp(13px, 1.25vw, 17px); letter-spacing: 0.1em; }
+      #prompt { position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%); color: #fff6dd; font-size: 15px; letter-spacing: 0.08em; white-space: nowrap;
+        background: rgba(43, 37, 48, 0.5); padding: 8px 18px; border-radius: 3px; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+      #prompt.on { opacity: 1; }
+      #prompt kbd { font: inherit; border: 1px solid rgba(255, 246, 221, 0.6); border-radius: 3px; padding: 1px 7px; margin-right: 9px; }
+      #pearls { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); display: flex; gap: 11px; align-items: center; pointer-events: none; opacity: 0; transition: opacity 2s; }
+      #pearls.on { opacity: 1; }
+      #pearls span { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(255, 240, 235, 0.55); background: rgba(43, 37, 48, 0.25); transition: all 1.4s; }
+      #pearls span.got { background: radial-gradient(circle at 35% 30%, #fffaf6, #f3c7cf 55%, #c98fa6); border-color: rgba(255, 250, 246, 0.9); box-shadow: 0 0 12px rgba(255, 225, 230, 0.9); transform: scale(1.18); }
+      #hint { position: fixed; right: 18px; bottom: 16px; color: #fff6dd; font-size: 12px; letter-spacing: 0.06em; opacity: 0.75; transition: opacity 2s; pointer-events: none;
+        text-shadow: 0 1px 6px rgba(40, 30, 60, 0.8); text-align: right; line-height: 1.6; }
+      #hint.faded { opacity: 0; }
+      #hint.off { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <div id="wash"></div>
+    <div id="caption"><b></b><i></i></div>
+    <div id="prompt"></div>
+    <div id="pearls"></div>
+    <div id="hint">Click, then mouse to look · WASD to swim and walk · Shift run · Space jump<br />wheel steps back · Enter full screen · M music · F2 fps · H hides this</div>
+    <div id="title"><div><h1>ČIURLIONIS</h1><h2>Kelionė · a walk through the paintings</h2><p>Click to begin</p></div></div>
+    <div id="loading">Mixing tempera</div>
+    <script type="module" src="/src/journey/main.js"></script>
+  </body>
+</html>
