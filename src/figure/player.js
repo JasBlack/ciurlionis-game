@@ -105,7 +105,8 @@ export class Player {
     if (this.mode === 'move') {
       // jump
       if (input.jump && this.grounded) return this.jump(dt, want);
-      const idle = this.speed < 0.15;
+      // (swimming, set by the game: there is no first step, no turning on the spot and no stopping step in the water)
+      const idle = this.speed < 0.15 && !this.swimming;
       // turn on the spot: free movement asked for far behind him, or aiming past his shoulder
       if (idle && this.grounded) {
         const ask = this.strafe ? camYaw : want.mag > 0.05 ? want.dirYaw : null;
@@ -131,7 +132,7 @@ export class Player {
       }
       // stop: let go while moving
       this.moveTime = this.speed > 0.5 ? (this.moveTime ?? 0) + dt : 0;
-      if (!this.strafe && want.mag < 0.05 && this.grounded && this.speed > 0.9 && this.moveTime > 0.6) {
+      if (!this.strafe && !this.swimming && want.mag < 0.05 && this.grounded && this.speed > 0.9 && this.moveTime > 0.6) {
         const clip = this.speed > A.setup.speeds.run + 0.4 ? 'Sprint_To_Idle' : this.speed > 2.4 ? 'Run_To_Idle' : 'AM_Walk_To_Idle';
         const from = A.match(clip, A.currentFeet(), 0, 0.3);
         this.mode = 'stop';

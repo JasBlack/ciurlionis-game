@@ -8,25 +8,33 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const clamp = THREE.MathUtils.clamp;
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-// One stroke of his swimming, a breaststroke with his head up, as a gentleman swims: as directions his left arm
+// One stroke of his swimming, a traditional breaststroke with his head up, as a gentleman swims: as directions his left arm
 // and leg pass through, [moment of the stroke 0..1, upper, lower], in the water's frame (x to his left, y up, z the
 // way he heads). The right side is its mirror, at the same moment. He glides with his arms out ahead; they sweep
 // wide and round in under his chin and shoot forward again, and as they do his knees come down, his heels up behind
 // him, and his legs kick round and together into the next glide.
 const ARMS = [
   [0.0, [0.1, -0.1, 1], [0.04, -0.06, 1]],
-  [0.3, [0.1, -0.1, 1], [0.04, -0.06, 1]],
-  [0.42, [0.72, -0.25, 0.62], [0.62, -0.38, 0.68]],
-  [0.52, [0.8, -0.45, 0.05], [-0.35, -0.55, 0.75]],
-  [0.6, [0.42, -0.7, 0.4], [-0.45, 0.1, 0.88]],
-  [0.72, [0.12, -0.2, 1], [0.05, -0.08, 1]],
+  [0.18, [0.1, -0.1, 1], [0.04, -0.06, 1]],
+  [0.34, [0.75, -0.18, 0.62], [0.66, -0.32, 0.68]],
+  [0.46, [0.82, -0.42, 0.1], [-0.38, -0.55, 0.74]],
+  [0.54, [0.45, -0.72, 0.38], [-0.48, 0.12, 0.87]],
+  [0.68, [0.12, -0.18, 1], [0.05, -0.08, 1]],
 ];
 const LEGS = [
-  [0.0, [0.06, -0.42, -0.9], [0.03, -0.38, -0.92]],
-  [0.42, [0.06, -0.42, -0.9], [0.03, -0.38, -0.92]],
-  [0.58, [0.36, -0.88, -0.12], [0.18, 0.42, -0.88]],
-  [0.68, [0.42, -0.62, -0.62], [0.62, -0.3, -0.72]],
-  [0.8, [0.07, -0.44, -0.9], [0.03, -0.38, -0.92]],
+  [0.0, [0.06, -0.4, -0.92], [0.03, -0.36, -0.93]],
+  [0.4, [0.06, -0.4, -0.92], [0.03, -0.36, -0.93]],
+  [0.56, [0.38, -0.86, -0.14], [0.2, 0.45, -0.87]],
+  [0.66, [0.46, -0.6, -0.62], [0.66, -0.28, -0.7]],
+  [0.78, [0.07, -0.42, -0.9], [0.03, -0.37, -0.93]],
+];
+// and his feet: pointed back in the glide, turned out and flexed to push the water in the kick
+const FEET = [
+  [0.0, [0.02, -0.25, -1]],
+  [0.44, [0.02, -0.25, -1]],
+  [0.56, [0.62, -0.62, 0.3]],
+  [0.68, [0.6, -0.7, 0.1]],
+  [0.8, [0.02, -0.25, -1]],
 ];
 const key = (keys, u, part, out) => {
   let i = keys.length - 1;
@@ -83,25 +91,28 @@ export function createBody(man, animator) {
      * In the water. w: how far he is swimming at all. stroke: 0 treading it, upright, arms wide on the surface;
      * 1 swimming forward on his front. u: the moment of the stroke (0..1); t: the time, for the idle sculling.
      */
-    swim(w, stroke, u, t, pitch = 0) {
+    swim(w, stroke, u, t, pitch = 0, rise = 0) {
       if (w < 0.01) return;
       heading.setFromAxisAngle(UP, O.rotation.y);
+      // treading (stroke 0), both sides together, never one leg after the other: his hands scull on the surface
+      // and his legs make a slow frog kick under him
+      const sc = Math.sin(t * 2.2), kk = 0.5 + 0.5 * Math.sin(t * 2.2 - 0.6);
       for (const s of ['l', 'r']) {
-        const sx = side(s), ph = s === 'l' ? 0 : 0.9;
-        // treading: arms lie out on the water and scull, legs pedal slowly
-        const sc = Math.sin(t * 2.3 + ph), kick = Math.sin(t * 3.1 + (s === 'l' ? 0 : Math.PI));
-        const up0 = a.set(0.92, -0.04, 0.24 + 0.26 * sc).clone(), lo0 = a.set(0.86, 0.1, 0.46 + 0.34 * Math.sin(t * 2.3 + ph + 0.7)).clone();
-        const th0 = a.set(0.2, -1, 0.26 + 0.24 * kick).clone(), ca0 = a.set(0.08, -1, -0.28 - 0.3 * Math.sin(t * 3.1 + (s === 'l' ? 0 : Math.PI) - 1.1)).clone();
+        const sx = side(s);
+        const up0 = a.set(0.9, -0.08, 0.32 + 0.22 * sc).clone(), lo0 = a.set(0.78, 0.02, 0.58 + 0.3 * Math.sin(t * 2.2 + 0.7)).clone();
+        const th0 = a.set(0.2 + 0.14 * kk, -0.96, 0.18).clone(), ca0 = a.set(0.12 + 0.2 * kk, -0.82, -0.52).clone(), ft0 = a.set(0.3 * kk, -0.6, 0.3).clone();
         const up = key(ARMS, u, 1, V()).lerp(up0, 1 - stroke), lo = key(ARMS, u, 2, V()).lerp(lo0, 1 - stroke);
-        const th = key(LEGS, u, 1, V()).lerp(th0, 1 - stroke), ca = key(LEGS, u, 2, V()).lerp(ca0, 1 - stroke);
-        for (const v of [up, lo, th, ca]) v.x *= sx;
+        const th = key(LEGS, u, 1, V()).lerp(th0, 1 - stroke), ca = key(LEGS, u, 2, V()).lerp(ca0, 1 - stroke), ft = key(FEET, u, 1, V()).lerp(ft0, 1 - stroke);
+        for (const v of [up, lo, th, ca, ft]) v.x *= sx;
         aim(`upperarm_${s}`, `lowerarm_${s}`, level(up), w);
         aim(`lowerarm_${s}`, `hand_${s}`, level(lo), w);
         aim(`thigh_${s}`, `calf_${s}`, level(th), w);
         aim(`calf_${s}`, `foot_${s}`, level(ca), w);
+        if (B[`ball_${s}`]) aim(`foot_${s}`, `ball_${s}`, level(ft), w);
       }
-      // he holds his head up out of the water, to see where he goes
-      const right = d.set(-1, 0, 0).applyQuaternion(heading), lift = Math.max(0, pitch - 0.08) * w;
+      // he holds his head up out of the water, to see where he goes, and lifts it a little more to breathe as his
+      // arms pull in under him
+      const right = d.set(-1, 0, 0).applyQuaternion(heading), lift = (Math.max(0, pitch - 0.08) + 0.18 * rise) * w;
       if (lift > 0.01) for (const [bone, k] of [['spine_03', 0.2], ['neck_01', 0.42], ['Head', 0.4]]) animator.rotateWorld(B[bone], right, lift * k);
     },
     /** Astride: knees out round the creature's back, hands down on its neck. */
