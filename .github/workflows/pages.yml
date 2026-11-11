@@ -1,10 +1,11 @@
 # Builds the game and publishes it on GitHub Pages.
-# Before the first run: Settings -> Pages -> Source: "GitHub Actions".
+# Settings -> Pages -> Source must be "GitHub Actions". With "Deploy from a branch" GitHub serves the source
+# files as they are, which a browser cannot run: the page then stays on "Mixing tempera" for ever.
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
