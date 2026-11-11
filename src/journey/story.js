@@ -5,7 +5,7 @@
 // to the pond; rides the salamander down the canal, through the gate, and flies it up to the mountain; and climbs
 // the golden stair to the angel, who gives him the pearls strung. Then the sea rises over the mountain, he swims,
 // and it begins again. If he is long without finding a pearl, sparks leave him and drift the way it lies. In the
-// flight the pearls are a course, round the whole mountain and back, shown a few at a time; at the summit there are
+// flight the pearls are a course of six, up round the mountain's shoulder, shown a few at a time; at the summit there are
 // none to look for: the angel comes when he is there, and the pearls she gives hang at the end of her rope.
 import * as THREE from 'three';
 import { PLACES } from './way.js';
@@ -28,15 +28,10 @@ export function createStory(ctx) {
   const groundAt = (x, z) => Math.max(heightAt(x, z), sea());
   const stairYaw = Math.atan2(STAIR.dx, STAIR.dz);
   const D = P.dandelion, K = T.king.knee, Tr = P.terrace, S = P.summit, Mt = P.mountain;
-  // the flight's course: two on the canal, one past the gate, then round the mountain (an ellipse, drawn in on the
-  // east where the sea's edge is near) a full turn, climbing, back to where it began, and one before the ring.
-  // [x, z, height, size]
-  const COURSE = [[150, P.canalZ, 1.6, 2.4], [226, P.canalZ, 1.6, 2.4], [300, P.canalZ, 14, 3]];
-  for (const [deg, h] of [[245, 70], [281, 88], [317, 102], [353, 110], [389, 114], [425, 116], [461, 118], [497, 118], [533, 118], [569, 118], [605, 120]]) {
-    const a = deg * Math.PI / 180;
-    COURSE.push([Mt.x + 130 * Math.cos(a), Mt.z + 150 * Math.sin(a), h, 3]);
-  }
-  COURSE.push([315, -225, 127, 3]);
+  // the flight's course, six pearls: one on the canal, one past the gate, then climbing wide round the mountain's
+  // north shoulder (out where nothing stands in the way), turning back west over its north face, and the last just
+  // before the ring. About three quarters of a minute in all. [x, z, height, size]
+  const COURSE = [[226, P.canalZ, 1.6, 2.4], [300, P.canalZ, 14, 3], [350, -290, 60, 3], [440, -255, 100, 3], [385, -240, 132, 3], [340, -215, 136, 3]];
 
   // start: where he stands and what he faces. ok: what the land map says of ground that belongs to the level.
   // pearls: [x, z, how high over the ground or the water, size]; in the flight the third number is the height itself.
@@ -62,7 +57,7 @@ export function createStory(ctx) {
       pearls: [[24, -226, 1.3], [K.x, K.z, 1.5], [6, -296, 1.3]],
     },
     {
-      id: 'flight', title: 'V · Salamandra', sub: 'The Salamander — down the canal, through the gate, and round the whole mountain on the pearls of light', opened: 'The great ring opens on the mountain', flight: true, course: true,
+      id: 'flight', title: 'V · Salamandra', sub: 'The Salamander — down the canal, through the gate, and up round the mountain on six pearls of light', opened: 'The great ring opens on the mountain', flight: true, course: true,
       pearls: COURSE,
     },
     {
@@ -393,7 +388,8 @@ export function createStory(ctx) {
         T.kid.uniforms.uWalk.value = Math.min(1, kid.speed / 1.1);
         // its arm: up into his hand while they walk together, hanging at its side otherwise
         shoulder.copy(T.kid.shoulder).applyMatrix4(km);
-        const holding = kid.follows && !morph.on && kid.near && ctx.swim < 0.3;
+        // (it lets go while he is off the ground, jumping, and takes his hand again when he lands)
+        const holding = kid.follows && !morph.on && kid.near && ctx.swim < 0.3 && player.grounded && player.mode !== 'jump' && player.mode !== 'air';
         ctx.hold.want = holding ? 1 : 0;
         if (holding) {
           const hx = root.x - shoulder.x, hz = root.z - shoulder.z, hl = Math.hypot(hx, hz) || 1;
@@ -403,6 +399,9 @@ export function createStory(ctx) {
         ctx.body.joint('hand_l', tmp);
         tmp2.set(-0.17, 0.4, 0.05).applyMatrix4(km);
         kid.hand.copy(tmp2).lerp(tmp, held * held * (3 - 2 * held));
+        // (and its arm reaches no further than an arm does: it is never drawn out to meet his hand)
+        const most = shoulder.distanceTo(tmp2) * 1.12, far = shoulder.distanceTo(kid.hand);
+        if (far > most) kid.hand.sub(shoulder).multiplyScalar(most / far).add(shoulder);
         T.kidArm.setMatrix(link(shoulder, kid.hand, KID, armMatrix), KID);
       } else if (level === 4) {
         if (phase === 'play') fly(dt, inp);
