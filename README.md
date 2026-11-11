@@ -19,9 +19,10 @@ Then open `http://localhost:5410`. Use Chrome or Edge with a real graphics card.
 
 | | |
 |---|---|
-| Click, then move the mouse | look (the first click locks the mouse to the picture; Esc frees it) |
-| Click, with the mouse locked | walk or swim to the ground under the aiming mark; sparks wind in to the spot |
-| Click or tap, with the mouse free | walk or swim to where it lands; drag to look |
+| Move the mouse | look: the view leans toward the side the mouse is on, and keeps turning while it is at the edge |
+| Click (or tap) the ground or the sea | walk or swim there; sparks wind in to the spot |
+| Drag (either button, or a finger) | turn the view directly |
+| The mouse, on the salamander in the air | it flies toward it: to the sides to turn, up to climb, down to dive |
 | A D, on the salamander in the air | turn (it also flies where you look) |
 | V | try the next finish (plain, card, tempera, pastel, watercolour, haze, brushed) |
 | W A S D | swim, walk; on the salamander W is faster, S slower |

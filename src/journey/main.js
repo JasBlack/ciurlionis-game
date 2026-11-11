@@ -217,8 +217,7 @@ ctx.story = story;
 // keys were held toward it, running when it is far and walking the last of the way, until he is there, the keys are
 // touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
 const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
-const aimMark = document.getElementById('aim');
-let aimCheck = 0;
+let cursorCheck = 0;
 const caster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitN = new THREE.Vector3(), hitP = new THREE.Vector3();
 /** The ground (or the sea's face) under the screen point (cx, cy), or null if the sky is there. */
 function groundUnder(cx, cy, max = 300) {
@@ -268,10 +267,15 @@ function tick(dt) {
   // a click is a place to walk to once the journey has begun and while he is his own master (not on the salamander)
   input.clickable = !story.waiting && !story.frozen && !ctx.scripted;
   if (input.clickable) for (const c of inp.clicks ?? []) sendTo(c.x, c.y);
-  // the aiming mark, while the mouse is locked for looking: faint where there is no ground under it
-  const aiming = input.clickable && document.pointerLockElement === renderer.domElement;
-  aimMark?.classList.toggle('on', aiming);
-  if (aiming && (aimCheck = (aimCheck + 1) % 6) === 0) aimMark?.classList.toggle('dim', !groundUnder(innerWidth * input.aim.x, innerHeight * input.aim.y));
+  // the eye follows the free mouse once the journey has begun (not on the title, nor while the story holds the eye)
+  input.follows = !story.waiting && !ctx.eye;
+  // the cursor is faint where a click would find no ground (the sky)
+  const cur = inp.cursor;
+  if (cur?.inside && (cursorCheck = (cursorCheck + 1) % 6) === 0) renderer.domElement.classList.toggle('nowalk', !input.clickable || !groundUnder((cur.x + 1) / 2 * innerWidth, (cur.y + 1) / 2 * innerHeight));
+  // the eye does not tilt up and down with the mouse: it keeps the painting's horizon (the wheel steps it back or in).
+  // A press dragged up or down is kept for the flight instead, which climbs or stoops by it when there is no mouse
+  ctx.climb = THREE.MathUtils.clamp((ctx.climb ?? 0) * Math.exp(-0.5 * dt) + inp.look.y * 2.5, -1, 1);
+  inp.look.y = 0;
   steer(inp, dt);
   if (story.frozen) { inp.move.x = inp.move.y = 0; inp.jump = false; }
   if (swim > 0.5) {

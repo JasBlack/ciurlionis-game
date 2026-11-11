@@ -49,9 +49,17 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
       in vec2 vUv;
       layout(location = 0) out vec4 outC;
 
-      // the tooth of the board: a fine, uneven grain, not a weave
+      // the tooth of the board: a fine, uneven grain that never repeats. (It was read from the small noise sheet,
+      // which repeats every few pixels and showed as a woven grid; this is made where it is, at three sizes, each
+      // turned its own way, so nothing lines up)
+      float h21(vec2 p) { p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
+      }
       float tooth(vec2 p) {
-        return texture(tNoise, p / 23.0).r * 0.55 + texture(tNoise, p / 7.0 + 0.37).g * 0.45;
+        const mat2 R1 = mat2(0.8, -0.6, 0.6, 0.8), R2 = mat2(0.28, -0.96, 0.96, 0.28);
+        return vnoise(p / 2.4) * 0.42 + vnoise(R1 * p / 5.3 + 17.3) * 0.36 + vnoise(R2 * p / 12.1 - 4.1) * 0.22;
       }
       // laid paper for pastel: a coarser tooth, its fibres running mostly one way
       float paper(vec2 p) {
@@ -154,7 +162,7 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
         }
         if (grain > 0.0) {
           float dx = tooth((px + vec2(1.0, 0.0)) / k) - t, dy = tooth((px + vec2(0.0, 1.0)) / k) - t;
-          col *= 1.0 + ((0.6 * dx - 0.8 * dy) * 0.55 + (t - 0.5) * 0.07) * grain;
+          col *= 1.0 + ((0.6 * dx - 0.8 * dy) * 0.36 + (t - 0.5) * 0.06) * grain;
           // (on the card the lightest passages take a little of its warmth)
           if (st == 1) col = mix(col, col * vec3(1.02, 0.99, 0.93), smoothstep(0.55, 0.95, luma(col)));
         }

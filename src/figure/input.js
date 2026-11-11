@@ -1,8 +1,9 @@
 // Keyboard, mouse and gamepad, read once a frame into one plain state.
 //   move: {x, y} (x right, y forward, length 0..1), walk, sprint, strafe (held),
 //   jump (pressed this frame), look: {x, y} (radians this frame), zoom (wheel steps this frame),
-//   clicks: [{x, y, aim}] (quick clicks or taps on the picture this frame, in screen pixels; aim: made with the mouse
-//   locked, at the aiming mark)
+//   clicks: [{x, y}] (quick clicks or taps on the picture this frame, in screen pixels),
+//   cursor: {x, y, inside} (where the mouse is over the picture, -1..1 each way, y down)
+const damp = (a, b, rate, dt) => b + (a - b) * Math.exp(-rate * dt);
 export class Input {
   constructor(el, { pads = true } = {}) {
     this.el = el;
@@ -14,53 +15,44 @@ export class Input {
     this.pad = { a: false, l3: false, sprint: false };
     this.sensitivity = 0.0022;
     this.override = null; // scripted input for captures
-    this.lockable = true;
-    // The mouse looks about: a click on the picture locks it to the picture (as games do), and from then on moving it
-    // turns the eye; Esc lets it go. With it locked, a click is a place to walk to, at the aiming mark (`aim`, as a
-    // fraction of the screen). Without it (a finger, or a browser that will not lock), a quick click or tap is a place
-    // to walk to where it lands, and a press dragged looks about. Clicks count only when the game says a click means a
-    // place (`clickable`, as it was when the button went down). L locks or frees the mouse as well.
+    // The mouse stays free over the picture, and the eye follows it: it leans toward the side the mouse is on (as
+    // far as `lean` radians at the edge), and with the mouse at the very edge it keeps turning that way. It never
+    // tilts up or down with it. A quick click (or tap) is a place to walk to, where it lands; pressed and dragged,
+    // either button (or a finger) looks about directly. Clicks count only when the game says a click means a place
+    // (`clickable`, as it was when the button went down); the eye follows the mouse only while `follows` is set.
     this.clicks = [];
     this.clickable = false;
+    this.follows = false;
+    this.lean = 0.3;
+    this.cursor = { x: 0, y: 0, inside: false };
+    this.leaned = 0;
     this.press = null;
-    this.aim = { x: 0.5, y: 0.66 };
     const typing = () => document.activeElement?.tagName === 'INPUT';
-    const locked = () => document.pointerLockElement === el;
     const down = (e) => {
       if (typing()) return;
       if (['Space', 'ArrowUp', 'ArrowDown', 'Tab', 'AltLeft', 'AltRight'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
       if (e.code === 'CapsLock') this.walkToggle = !this.walkToggle;
-      if (e.code === 'KeyL' && !e.repeat) {
-        if (locked()) document.exitPointerLock?.();
-        else if (this.lockable) el.requestPointerLock?.()?.catch?.(() => {});
-      }
     };
     const up = (e) => this.keys.delete(e.code);
     addEventListener('keydown', down);
     addEventListener('keyup', up);
-    addEventListener('blur', () => { this.keys.clear(); this.press = null; el.classList.remove('dragging'); });
+    addEventListener('blur', () => { this.keys.clear(); this.press = null; this.cursor.inside = false; el.classList.remove('dragging'); });
     el.addEventListener('mousedown', (e) => { if (e.button === 2) this.mouse.right = true; });
     addEventListener('mouseup', (e) => { if (e.button === 2) this.mouse.right = false; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    addEventListener('mousemove', (e) => {
-      if (locked() || this.mouse.right) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; }
-    });
+    addEventListener('mousemove', (e) => { if (this.mouse.right) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; } });
+    el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this.cursor.inside = false; });
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      if (locked()) {
-        if (this.clickable) this.clicks.push({ x: innerWidth * this.aim.x, y: innerHeight * this.aim.y, aim: true });
-        return;
-      }
       this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), drag: false, armed: this.clickable };
       el.setPointerCapture?.(e.pointerId);
-      // (a mouse click locks it for looking; the place it was clicked on is still walked to)
-      if (e.pointerType === 'mouse' && this.lockable) el.requestPointerLock?.()?.catch?.(() => {});
     });
     el.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'mouse') Object.assign(this.cursor, { x: (e.clientX / innerWidth) * 2 - 1, y: (e.clientY / innerHeight) * 2 - 1, inside: true });
       const p = this.press;
-      if (!p || e.pointerId !== p.id || locked()) { if (p && locked()) p.drag = false; return; }
+      if (!p || e.pointerId !== p.id) return;
       if (!p.drag && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 7) { p.drag = true; el.classList.add('dragging'); }
       if (p.drag && !this.mouse.right) { this.mouse.x += e.clientX - p.lx; this.mouse.y += e.clientY - p.ly; }
       p.lx = e.clientX; p.ly = e.clientY;
@@ -88,15 +80,24 @@ export class Input {
       move: { x, y },
       walk: this.walkToggle !== (k.has('AltLeft') || k.has('AltRight')),
       sprint: k.has('ShiftLeft') || k.has('ShiftRight'),
-      strafe: (this.mouse.right && document.pointerLockElement === this.el) || k.has('KeyF'),
+      strafe: k.has('KeyF'),
       jump: this.pressed.has('Space'),
       look: { x: this.mouse.x * this.sensitivity, y: this.mouse.y * this.sensitivity },
       zoom: this.mouse.wheel,
       device: 'keyboard',
       clicks: this.clicks.splice(0),
+      cursor: { ...this.cursor },
     };
     this.mouse.x = this.mouse.y = this.mouse.wheel = 0;
     this.pressed.clear();
+    // the eye follows the free mouse: a lean toward its side (given back as it comes back to the middle), and a
+    // steady turn while it is held at the very edge. (Not while a press is dragged: that looks about by itself.)
+    const c = this.cursor, steer = this.follows && c.inside && !(this.press?.drag) && !this.mouse.right;
+    const want = steer ? Math.sign(c.x) * Math.pow(Math.min(1, Math.abs(c.x)), 1.4) * this.lean : 0;
+    const leaned = damp(this.leaned, want, 5, dt);
+    s.look.x += leaned - this.leaned;
+    this.leaned = leaned;
+    if (steer) { const edge = Math.min(1, Math.max(0, (Math.abs(c.x) - 0.84) / 0.14)); s.look.x += Math.sign(c.x) * Math.pow(edge, 1.5) * 1.2 * dt; }
 
     // gamepad: left stick moves (its tilt sets the speed), right stick looks, L3 sprints,
     // A jumps, LT strafes, d-pad up/down zooms
