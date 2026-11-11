@@ -1,6 +1,7 @@
 // Keyboard, mouse and gamepad, read once a frame into one plain state.
 //   move: {x, y} (x right, y forward, length 0..1), walk, sprint, strafe (held),
-//   jump (pressed this frame), look: {x, y} (radians this frame), zoom (wheel steps this frame)
+//   jump (pressed this frame), look: {x, y} (radians this frame), zoom (wheel steps this frame),
+//   clicks: [{x, y}] (quick clicks or taps on the picture this frame, in screen pixels)
 export class Input {
   constructor(el, { pads = true } = {}) {
     this.el = el;
@@ -13,28 +14,56 @@ export class Input {
     this.sensitivity = 0.0022;
     this.override = null; // scripted input for captures
     this.lockable = true;
+    // A quick click (or tap) on the picture is a place to walk to: it is kept in `clicks` (screen pixels) when the
+    // game says a click means that (`clickable`, as it was when the button went down). Pressed and dragged, the left
+    // button (or a finger) looks about instead, as the right button does. L locks the mouse for looking.
+    this.clicks = [];
+    this.clickable = false;
+    this.press = null;
     const typing = () => document.activeElement?.tagName === 'INPUT';
+    const locked = () => document.pointerLockElement === el;
     const down = (e) => {
       if (typing()) return;
       if (['Space', 'ArrowUp', 'ArrowDown', 'Tab', 'AltLeft', 'AltRight'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
       if (e.code === 'CapsLock') this.walkToggle = !this.walkToggle;
+      if (e.code === 'KeyL' && !e.repeat) {
+        if (locked()) document.exitPointerLock?.();
+        else if (this.lockable) el.requestPointerLock?.()?.catch?.(() => {});
+      }
     };
     const up = (e) => this.keys.delete(e.code);
     addEventListener('keydown', down);
     addEventListener('keyup', up);
-    addEventListener('blur', () => this.keys.clear());
-    el.addEventListener('mousedown', (e) => {
-      if (e.button === 2) this.mouse.right = true;
-      // a click locks the mouse for looking, except while a panel or the replay wants the mouse
-      if (e.button === 0 && this.lockable && document.pointerLockElement !== el) el.requestPointerLock?.()?.catch?.(() => {});
-    });
+    addEventListener('blur', () => { this.keys.clear(); this.press = null; el.classList.remove('dragging'); });
+    el.addEventListener('mousedown', (e) => { if (e.button === 2) this.mouse.right = true; });
     addEventListener('mouseup', (e) => { if (e.button === 2) this.mouse.right = false; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement === el || this.mouse.right) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; }
+      if (locked() || this.mouse.right) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; }
     });
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || locked()) return;
+      this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), drag: false, armed: this.clickable };
+      el.setPointerCapture?.(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      const p = this.press;
+      if (!p || e.pointerId !== p.id || locked()) return;
+      if (!p.drag && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 7) { p.drag = true; el.classList.add('dragging'); }
+      if (p.drag && !this.mouse.right) { this.mouse.x += e.clientX - p.lx; this.mouse.y += e.clientY - p.ly; }
+      p.lx = e.clientX; p.ly = e.clientY;
+    });
+    const release = (e) => {
+      const p = this.press;
+      if (!p || e.pointerId !== p.id) return;
+      this.press = null;
+      el.classList.remove('dragging');
+      if (e.type === 'pointerup' && !p.drag && p.armed && performance.now() - p.t < 700) this.clicks.push({ x: e.clientX, y: e.clientY });
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
     el.addEventListener('wheel', (e) => { this.mouse.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
   }
 
@@ -54,6 +83,7 @@ export class Input {
       look: { x: this.mouse.x * this.sensitivity, y: this.mouse.y * this.sensitivity },
       zoom: this.mouse.wheel,
       device: 'keyboard',
+      clicks: this.clicks.splice(0),
     };
     this.mouse.x = this.mouse.y = this.mouse.wheel = 0;
     this.pressed.clear();

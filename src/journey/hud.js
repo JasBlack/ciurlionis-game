@@ -14,16 +14,23 @@ export function createHud() {
     /** The picture is ready: the flat backdrop gives way to it. withTitle: the title stays, and asks for a click. */
     ready(withTitle) {
       backdrop?.classList.add('gone');
-      setTimeout(() => backdrop?.remove(), 2400);
+      setTimeout(() => backdrop?.remove(), 2600);
       bar?.classList.add('done');
-      if (withTitle) { if (begin) { begin.textContent = 'Click to begin'; begin.classList.add('ready'); } } else title?.classList.add('off');
-      hint?.classList.add('on');
-      setTimeout(() => hint?.classList.remove('on'), 16000);
+      if (withTitle) {
+        title?.classList.add('ready');
+        if (begin) { begin.textContent = 'Click to begin'; begin.classList.add('ready'); }
+      } else { title?.classList.add('off'); this.hint(); }
     },
     /** The title leaves. */
     begin() {
       title?.classList.add('gone');
       setTimeout(() => title?.classList.add('off'), 2600);
+      setTimeout(() => this.hint(), 1800);
+    },
+    /** The keys, in the corner for a while. */
+    hint() {
+      hint?.classList.add('on');
+      setTimeout(() => hint?.classList.remove('on'), 16000);
     },
     caption(main, sub = '', hold = 7) {
       if (!cap) return;

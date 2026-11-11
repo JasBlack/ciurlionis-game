@@ -275,8 +275,9 @@ export function createStory(ctx) {
       phase = 'play';
       // the first look: him in the sea with Rex behind him, as the film opens
       frozen = true;
-      // (they stand to the right of the picture: the title is written on its left)
-      ctx.eye = { position: V(-2.5, 2.3, 478), target: V(P.rex.x + 8.7, 5.5, P.rex.z), blend: 1 };
+      // (Rex in the middle of the picture with his halo whole, the horizon a little above the middle, and the title
+      // written on the sea below him)
+      ctx.eye = { position: V(P.rex.x - 3.5, 2.1, P.rex.z - 44), target: V(P.rex.x, 2.5, P.rex.z), blend: 1 };
       const go = () => {
         if (started) return;
         started = true; frozen = false;

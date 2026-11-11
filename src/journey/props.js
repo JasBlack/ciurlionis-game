@@ -130,9 +130,68 @@ export function createProps(shared, opts = {}) {
     things.motes = t;
   }
 
+  // --- where a click sends him: a ring of light laid on the ground, that shrinks to the spot and is gone. It is
+  // drawn over everything (it is a sign for the eye, not a thing in the painting), and larger the farther off it is ---
+  {
+    const kit = createKit(shared, { seed: 90, additive: true, order: 7, minPx: [2, 3], maxPx: [500, 1200], cells: [4, 2], jitter: 0.06 });
+    const flat = (c) => kit.pal(c, c, c);
+    const gold = flat([0.56, 0.42, 0.17]), rose = flat([0.36, 0.18, 0.15]), pale = flat([0.3, 0.25, 0.14]);
+    const UP = V(0, 1, 0);
+    kit.fx(0, 2);
+    for (let i = 0; i < 44; i++) { const a = (i / 44) * 6.283; kit.dab(V(Math.cos(a), 0, Math.sin(a)), V(-Math.sin(a), 0, Math.cos(a)), UP, gold, 0.07, 0.24); }
+    for (let i = 0; i < 30; i++) { const a = ((i + 0.5) / 30) * 6.283; kit.dab(V(Math.cos(a) * 0.74, 0, Math.sin(a) * 0.74), V(-Math.sin(a), 0, Math.cos(a)), UP, rose, 0.045, 0.2); }
+    for (let i = 0; i < 3; i++) kit.dab(V(0, 0, 0), V(Math.cos(i), 0, Math.sin(i)), UP, pale, 0.16, 0.2);
+    const t = kit.build();
+    t.strokes.material.depthTest = false;
+    t.show(0);
+    group.add(t.group);
+    things.mark = t;
+    // and inside the light, a thin ring of gold paint, which shows on pale ground where light alone would not
+    const ink = createKit(shared, { seed: 91, order: 8, minPx: [2.6, 5], maxPx: [300, 800], cells: [4, 2], jitter: 0.08, lift: 0 });
+    const g = ink.pal([0.98, 0.6, 0.16], [0.98, 0.6, 0.16], [0.98, 0.6, 0.16]), w = ink.pal([1, 0.9, 0.62], [1, 0.9, 0.62], [1, 0.9, 0.62]);
+    ink.fx(0, 2);
+    for (let i = 0; i < 36; i++) { const a = (i / 36) * 6.283; ink.dab(V(Math.cos(a) * 0.96, 0, Math.sin(a) * 0.96), V(-Math.sin(a), 0, Math.cos(a)), UP, i % 5 ? g : w, 0.085, 0.27); }
+    const r = ink.build();
+    r.strokes.material.depthTest = false; r.strokes.material.depthWrite = false;
+    r.show(0);
+    group.add(r.group);
+    things.markRing = r;
+  }
+  // (the ring stands tilted up toward the eye from the ground it marks, its lower edge on the spot, as the halos of
+  // the paintings stand: so it reads as a round halo from near or far, high or low, and shrinks into the spot)
+  const mark = { t: -1, size: 1, p: new THREE.Vector3(), up: new THREE.Vector3(), q: new THREE.Quaternion(), m: new THREE.Matrix4(), s: new THREE.Vector3(), c: new THREE.Vector3() };
+  /** A click has sent him to p (lying on ground whose normal is n), seen from `eye`. */
+  function markAt(p, n, eye) {
+    mark.t = 0;
+    mark.p.copy(p);
+    const toEye = eye.clone().sub(p).normalize(), face = n.clone().multiplyScalar(0.45).add(toEye).normalize();
+    mark.q.setFromUnitVectors(V(0, 1, 0), face);
+    // (which way is up in the ring's own plane: from its centre to the spot is down)
+    mark.up.copy(n).addScaledVector(face, -n.dot(face)).normalize();
+    mark.size = THREE.MathUtils.clamp(eye.distanceTo(p) / 8, 0.8, 10);
+    things.mark.show(1); things.markRing.show(1);
+  }
+  function updateMark(dt) {
+    if (mark.t < 0) return;
+    mark.t += dt;
+    const u = mark.t / 1.1;
+    if (u >= 1) { mark.t = -1; things.mark.show(0); things.markRing.show(0); return; }
+    const e = 1 - Math.pow(1 - u, 3), k = mark.size * (1.0 - 0.86 * e);
+    mark.c.copy(mark.p).addScaledVector(mark.up, k * 0.92 + 0.04);
+    mark.m.compose(mark.c, mark.q, mark.s.setScalar(k));
+    // (the strokes thin less than the ring shrinks, so that it stays a ring of light and not a speck)
+    const sk = mark.size * (1 - 0.5 * e);
+    things.mark.setMatrix(mark.m, sk);
+    things.markRing.setMatrix(mark.m, sk);
+    const fade = Math.min(1, u / 0.06) * (1 - THREE.MathUtils.smoothstep(u, 0.4, 1));
+    things.mark.uniforms.uTintK.value.setScalar(fade * 1.2);
+    things.markRing.show(Math.max(0.005, fade));
+  }
+
   const sun = shared.uSunDir.value;
   const pulse = new THREE.Color();
-  function update(time) {
+  function update(time, dt = 0) {
+    updateMark(dt);
     // the great bird wheels over the hills; its shadow is laid on the ground where the sun puts it
     const a = time * 0.15, R = 60, bx = -6 + Math.cos(a) * R, bz = 304 + Math.sin(a) * R * 0.8, by = 70 + 4 * Math.sin(time * 0.3);
     const yaw = Math.atan2(-Math.sin(a) * R, Math.cos(a) * R * 0.8);
@@ -144,7 +203,7 @@ export function createProps(shared, opts = {}) {
     things.hornGlow.uniforms.uTintK.value.copy(pulse.setScalar(0.8 + 0.35 * Math.sin(time * 2.6)));
   }
   return {
-    group, things, update,
+    group, things, update, markAt,
     casters: [...flora.casters, ...pieces.casters],
     colliders: [...flora.colliders, ...pieces.colliders],
     counts: flora.counts,

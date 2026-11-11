@@ -19,7 +19,9 @@ Then open `http://localhost:5410`. Use Chrome or Edge with a real graphics card.
 
 | | |
 |---|---|
-| Click, then mouse | look |
+| Click (or tap) the ground or the sea | walk or swim there; a ring of light shows the spot |
+| Drag (left or right button, or a finger) | look |
+| L | lock the mouse for looking (again, or Esc, to free it) |
 | W A S D | swim, walk; on the salamander W is faster, S slower |
 | Shift | run |
 | Space | jump |
@@ -73,7 +75,7 @@ moves, with `Failed to resolve module specifier "three"` in the browser's consol
 
 | | |
 |---|---|
-| `src/journey/` | the game: `main.js` (the loop), `story.js` (levels, portals, the flight, the finale), `way.js` and `land.js` (the island), `paint.js` and `mood.js` (palettes and each level's hour), `ground.js`, `water.js`, `sky.js`, `far.js` (what the world is painted with), `kit.js` (shapes with strokes on them), `flora.js` and `pieces.js` (what stands on the island), `props.js` (the ring of light, the pearls, the sparks), `painter.js` (the figure), `body.js` (how he stands, swims, rides and gives his hand), `brush.js` and `finish.js` (the look), `hud.js` (title, loading bar, captions) |
+| `src/journey/` | the game: `main.js` (the loop, and walking where a click sends him), `story.js` (levels, portals, the flight, the finale), `way.js` and `land.js` (the island), `paint.js` and `mood.js` (palettes and each level's hour), `ground.js`, `water.js`, `sky.js`, `far.js` (what the world is painted with), `kit.js` (shapes with strokes on them), `flora.js` and `pieces.js` (what stands on the island), `props.js` (the ring of light, the pearls, the sparks, the ring that marks a click), `painter.js` (the figure), `body.js` (how he stands, swims, rides and gives his hand), `brush.js` and `finish.js` (the look), `hud.js` (title, loading bar, captions) |
 | `src/oilpaint/` | Patch's oil paint block, unchanged: the dab, the brush, the steady ground, shade, the canvas |
 | `src/figure/` | Patch's starter man and his movement, with the Rapier physics it uses |
 | `public/figure/` | the figure and his animation clips |
@@ -99,6 +101,7 @@ For testing in a console: `lab.story.enter(0..5)` jumps to a level, `lab.telepor
 | `src/figure/rapier/` | Rapier 0.21.0 by Dimforge | Apache-2.0, see `src/figure/rapier/LICENSE` |
 | three.js 0.186.1 | npm | MIT |
 | `lib/patch-block.js` | Patch's block helper | Patch's |
+| `public/fonts/` | Cormorant Garamond, by Christian Thalmann (the Cormorant Project), via Fontsource | SIL Open Font License 1.1, see `public/LICENSES/OFL-1.1-Cormorant-Garamond.txt` |
 
 The full list for the block is in `LICENCE-NOTES-oil-paint.md`.
 

@@ -4,39 +4,125 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Čiurlionis · Kelionė</title>
+    <meta name="description" content="A walk through the paintings of M. K. Čiurlionis: swim, walk and fly through six landscapes from a short film about him." />
+    <meta name="theme-color" content="#3a5db4" />
     <link rel="icon" href="data:," />
+    <link rel="preload" href="./fonts/cormorant-garamond-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/cormorant-garamond-latin-ext-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <style>
-      html, body { margin: 0; height: 100%; background: #1d1a22; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; }
+      /* Cormorant Garamond (SIL Open Font License 1.1, see LICENSES/OFL-1.1-Cormorant-Garamond.txt) */
+      @font-face { font-family: 'Cormorant'; font-style: normal; font-weight: 300 700; font-display: swap; src: url(./fonts/cormorant-garamond-latin-ext-wght-normal.woff2) format('woff2');
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+      @font-face { font-family: 'Cormorant'; font-style: normal; font-weight: 300 700; font-display: swap; src: url(./fonts/cormorant-garamond-latin-wght-normal.woff2) format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: 'Cormorant'; font-style: italic; font-weight: 300 700; font-display: swap; src: url(./fonts/cormorant-garamond-latin-ext-wght-italic.woff2) format('woff2');
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+      @font-face { font-family: 'Cormorant'; font-style: italic; font-weight: 300 700; font-display: swap; src: url(./fonts/cormorant-garamond-latin-wght-italic.woff2) format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      :root { --cream: #fff6e2; --gold: #f3d08a; --ink: 30, 24, 60; --serif: 'Cormorant', Georgia, 'Times New Roman', serif; }
+      html, body { margin: 0; height: 100%; background: #3a5db4; overflow: hidden; font-family: var(--serif); }
       #view, #view canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-      /* what is seen until the picture is ready: the sea's own sky and water, laid in flat */
-      #backdrop { position: fixed; inset: 0; transition: opacity 2.2s; pointer-events: none;
-        background: linear-gradient(to bottom, #82bcdd 0%, #a9c6dc 22%, #e9c3c6 44%, #f6dfb0 60%, #f8e7b6 63%, #4d6fc0 63.2%, #3a5db4 78%, #2c4c9f 100%); }
+      #view canvas { cursor: default; touch-action: none; }
+      #view canvas.dragging { cursor: grabbing; }
+
+      /* what is seen until the picture is ready: the opening painting laid in flat, its sky of pastel clouds over
+         the low hills and the blue sea, with Rex's halo standing where he will be */
+      #backdrop { position: fixed; inset: 0; transition: opacity 2.4s ease; pointer-events: none; overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 22%, rgba(255, 250, 238, 0) 0 8.5vh, rgba(255, 250, 238, 0.75) 8.9vh, rgba(255, 250, 238, 0) 9.5vh),
+          radial-gradient(circle at 50% 22%, rgba(255, 250, 238, 0) 0 12.2vh, rgba(255, 250, 238, 0.6) 12.6vh, rgba(255, 250, 238, 0) 13.2vh),
+          radial-gradient(ellipse 4.5vh 14vh at 50% 34%, rgba(255, 243, 236, 0.8), rgba(255, 243, 236, 0) 72%),
+          radial-gradient(ellipse 6vh 2.6vh at 50% 48.5%, rgba(244, 196, 72, 0.95), rgba(244, 196, 72, 0) 80%),
+          radial-gradient(ellipse 24% 4% at 40% 6%, rgba(244, 196, 206, 0.8), rgba(244, 196, 206, 0) 70%),
+          radial-gradient(ellipse 20% 4% at 6% 26%, rgba(189, 226, 210, 0.85), rgba(189, 226, 210, 0) 70%),
+          radial-gradient(ellipse 24% 4% at 70% 22%, rgba(246, 231, 166, 0.8), rgba(246, 231, 166, 0) 70%),
+          radial-gradient(ellipse 22% 4% at 96% 8%, rgba(206, 199, 236, 0.85), rgba(206, 199, 236, 0) 70%),
+          radial-gradient(ellipse 26% 4% at 24% 45%, rgba(198, 230, 214, 0.8), rgba(198, 230, 214, 0) 70%),
+          radial-gradient(ellipse 30% 6% at 14% 13%, rgba(241, 192, 204, 0.9), rgba(241, 192, 204, 0) 70%),
+          radial-gradient(ellipse 26% 5% at 62% 9%, rgba(189, 226, 210, 0.95), rgba(189, 226, 210, 0) 70%),
+          radial-gradient(ellipse 22% 6% at 88% 20%, rgba(244, 196, 206, 0.9), rgba(244, 196, 206, 0) 70%),
+          radial-gradient(ellipse 34% 5% at 30% 25%, rgba(206, 199, 236, 0.85), rgba(206, 199, 236, 0) 70%),
+          radial-gradient(ellipse 28% 5% at 78% 33%, rgba(198, 230, 214, 0.9), rgba(198, 230, 214, 0) 70%),
+          radial-gradient(ellipse 30% 5% at 10% 37%, rgba(246, 231, 166, 0.9), rgba(246, 231, 166, 0) 70%),
+          radial-gradient(ellipse 26% 4% at 52% 40%, rgba(243, 198, 205, 0.85), rgba(243, 198, 205, 0) 70%),
+          radial-gradient(ellipse 30% 5% at 90% 41%, rgba(247, 233, 170, 0.85), rgba(247, 233, 170, 0) 70%),
+          radial-gradient(ellipse 60% 5% at 22% 48.5%, rgba(190, 168, 214, 0.95), rgba(190, 168, 214, 0) 72%),
+          radial-gradient(ellipse 55% 4.5% at 80% 49%, rgba(198, 176, 220, 0.95), rgba(198, 176, 220, 0) 72%),
+          linear-gradient(to bottom, #8fc6d6 0%, #a9d2cf 18%, #d9d4cf 34%, #ecd2c4 46%, #f3e3ad 47%, #f6e7b6 50.8%, #5d7fcf 51%, #4b6ec4 68%, #3858ae 100%); }
+      #backdrop::after { content: ''; position: absolute; left: 0; right: 0; top: 51%; bottom: 0;
+        background:
+          radial-gradient(ellipse 17% 0.6% at 12% 5%, rgba(120, 146, 214, 0.37), rgba(120, 146, 214, 0) 75%),
+          radial-gradient(ellipse 12% 0.6% at 95% 10%, rgba(226, 206, 236, 0.37), rgba(226, 206, 236, 0) 75%),
+          radial-gradient(ellipse 20% 0.7% at 42% 11%, rgba(196, 178, 230, 0.51), rgba(196, 178, 230, 0) 75%),
+          radial-gradient(ellipse 18% 0.7% at 2% 17%, rgba(196, 178, 230, 0.36), rgba(196, 178, 230, 0) 75%),
+          radial-gradient(ellipse 12% 0.8% at 27% 21%, rgba(132, 160, 226, 0.49), rgba(132, 160, 226, 0) 75%),
+          radial-gradient(ellipse 19% 0.9% at 6% 24%, rgba(168, 186, 240, 0.49), rgba(168, 186, 240, 0) 75%),
+          radial-gradient(ellipse 14% 1.3% at 2% 25%, rgba(226, 206, 236, 0.54), rgba(226, 206, 236, 0) 75%),
+          radial-gradient(ellipse 17% 1.1% at 97% 30%, rgba(196, 178, 230, 0.52), rgba(196, 178, 230, 0) 75%),
+          radial-gradient(ellipse 20% 1.6% at 58% 33%, rgba(226, 206, 236, 0.42), rgba(226, 206, 236, 0) 75%),
+          radial-gradient(ellipse 19% 1.7% at 8% 39%, rgba(196, 178, 230, 0.58), rgba(196, 178, 230, 0) 75%),
+          radial-gradient(ellipse 13% 1.5% at 101% 41%, rgba(132, 160, 226, 0.44), rgba(132, 160, 226, 0) 75%),
+          radial-gradient(ellipse 26% 1.1% at 50% 44%, rgba(168, 186, 240, 0.59), rgba(168, 186, 240, 0) 75%),
+          radial-gradient(ellipse 14% 1.8% at 68% 48%, rgba(120, 146, 214, 0.60), rgba(120, 146, 214, 0) 75%),
+          radial-gradient(ellipse 20% 1.9% at 26% 53%, rgba(168, 186, 240, 0.59), rgba(168, 186, 240, 0) 75%),
+          radial-gradient(ellipse 23% 1.4% at 62% 55%, rgba(132, 160, 226, 0.38), rgba(132, 160, 226, 0) 75%),
+          radial-gradient(ellipse 30% 1.3% at 38% 58%, rgba(226, 206, 236, 0.45), rgba(226, 206, 236, 0) 75%),
+          radial-gradient(ellipse 22% 1.9% at 10% 62%, rgba(226, 206, 236, 0.60), rgba(226, 206, 236, 0) 75%),
+          radial-gradient(ellipse 19% 1.4% at 37% 67%, rgba(196, 178, 230, 0.41), rgba(196, 178, 230, 0) 75%),
+          radial-gradient(ellipse 27% 1.7% at 48% 69%, rgba(168, 186, 240, 0.39), rgba(168, 186, 240, 0) 75%),
+          radial-gradient(ellipse 22% 1.6% at 62% 73%, rgba(120, 146, 214, 0.59), rgba(120, 146, 214, 0) 75%),
+          radial-gradient(ellipse 25% 2.7% at 76% 77%, rgba(120, 146, 214, 0.45), rgba(120, 146, 214, 0) 75%),
+          radial-gradient(ellipse 29% 1.6% at 6% 80%, rgba(168, 186, 240, 0.60), rgba(168, 186, 240, 0) 75%),
+          radial-gradient(ellipse 29% 1.7% at 7% 83%, rgba(120, 146, 214, 0.39), rgba(120, 146, 214, 0) 75%),
+          radial-gradient(ellipse 16% 2.9% at 35% 86%, rgba(120, 146, 214, 0.44), rgba(120, 146, 214, 0) 75%),
+          radial-gradient(ellipse 30% 2.4% at 100% 91%, rgba(168, 186, 240, 0.56), rgba(168, 186, 240, 0) 75%),
+          radial-gradient(ellipse 28% 1.8% at 46% 96%, rgba(168, 186, 240, 0.54), rgba(168, 186, 240, 0) 75%),
+          linear-gradient(to bottom, rgba(246, 231, 182, 0.55), rgba(246, 231, 182, 0) 4%); }
       #backdrop.gone { opacity: 0; }
-      #title { position: fixed; inset: 0; display: grid; place-items: end start; pointer-events: none; transition: opacity 2.4s; }
+
+      /* the title, over the opening painting */
+      #title { position: fixed; inset: 0; display: grid; align-content: end; justify-items: center; padding-bottom: 5.5vh; text-align: center; pointer-events: none; transition: opacity 2.4s ease; color: var(--cream); }
       #title.gone { opacity: 0; }
       #title.off { display: none; }
-      #title div.words { margin: 0 5vw 10vh 6vw; text-align: left; color: #fff6dd; text-shadow: 0 1px 14px rgba(40, 30, 60, 0.75), 0 0 2px rgba(40, 30, 60, 0.6); }
-      #title h1 { margin: 0; font-weight: normal; font-size: clamp(30px, 4.8vw, 72px); letter-spacing: 0.28em; }
-      #title h2 { margin: 0.5em 0 0; font-weight: normal; font-style: italic; font-size: clamp(15px, 1.7vw, 22px); letter-spacing: 0.12em; }
-      #bar { width: min(340px, 56vw); height: 3px; margin: 2.2em 0 0; background: rgba(255, 246, 221, 0.28); border-radius: 2px; overflow: hidden; transition: opacity 0.8s; }
-      #bar i { display: block; height: 100%; width: 3%; background: #fff6dd; border-radius: 2px; transition: width 0.35s ease-out; box-shadow: 0 0 10px rgba(255, 246, 221, 0.9); animation: breathe 1.6s ease-in-out infinite; }
+      #title .veil { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 36% at 50% 84%, rgba(var(--ink), 0.5), rgba(var(--ink), 0.2) 55%, rgba(var(--ink), 0) 80%); }
+      #title .words { position: relative; padding: 0 4vw; text-shadow: 0 1px 2px rgba(var(--ink), 0.45), 0 2px 22px rgba(var(--ink), 0.5); }
+      #title h1 { margin: 0; font-weight: 300; font-size: clamp(40px, 7vw, 120px); line-height: 1; letter-spacing: 0.24em; padding-left: 0.24em; white-space: nowrap;
+        text-shadow: 0 0 34px rgba(255, 232, 178, 0.45), 0 1px 2px rgba(var(--ink), 0.4), 0 3px 26px rgba(var(--ink), 0.55); }
+      #title h1 span { display: inline-block; opacity: 0; filter: blur(12px); transform: translateY(0.16em); animation: rise 1.9s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; animation-delay: calc(0.2s + var(--i) * 0.11s); }
+      @keyframes rise { to { opacity: 1; filter: blur(0); transform: none; } }
+      #title .orn { display: flex; align-items: center; justify-content: center; gap: 16px; width: min(420px, 66vw); margin: 0.75em auto 0; opacity: 0; animation: appear 2s ease 1.4s forwards; }
+      #title .orn i { flex: 1; height: 2px; border-radius: 1px; background: linear-gradient(to right, rgba(255, 226, 160, 0), rgba(255, 226, 160, 1)); box-shadow: 0 0 8px rgba(255, 222, 150, 0.7); }
+      #title .orn i + svg + i { background: linear-gradient(to left, rgba(255, 226, 160, 0), rgba(255, 226, 160, 1)); }
+      #title .orn svg { width: 20px; height: 20px; flex: none; filter: drop-shadow(0 0 6px rgba(255, 226, 160, 0.9)); animation: turn 60s linear infinite; }
+      @keyframes turn { to { transform: rotate(360deg); } }
+      #title h2 { margin: 0.55em 0 0; font-weight: 400; font-size: clamp(17px, 1.9vw, 27px); letter-spacing: 0.08em; opacity: 0; animation: appear 2s ease 1.7s forwards; }
+      #title h2 b { font-weight: 500; letter-spacing: 0.34em; text-transform: uppercase; font-size: 0.82em; }
+      #title h2 em { font-style: italic; }
+      #title h2 .dot { color: var(--gold); margin: 0 0.5em; }
+      @keyframes appear { to { opacity: 1; } }
+      #bar { width: min(240px, 44vw); height: 1px; margin: 1.7em auto 0; background: rgba(255, 246, 226, 0.22); overflow: hidden; transition: opacity 0.9s; }
+      #bar i { display: block; height: 100%; width: 3%; background: linear-gradient(to right, rgba(255, 246, 226, 0.3), #fff6e2); transition: width 0.35s ease-out; box-shadow: 0 0 10px rgba(255, 240, 200, 0.95); }
       #bar.done { opacity: 0; }
-      #begin { margin: 0.9em 0 0; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.9; min-height: 1.4em; }
-      #begin.ready { animation: breathe 2.4s ease-in-out infinite; }
-      @keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
-      #caption { position: fixed; left: 0; right: 0; top: 9vh; text-align: center; color: #fff6dd; opacity: 0; transition: opacity 1.8s; pointer-events: none;
-        text-shadow: 0 1px 12px rgba(40, 30, 60, 0.7), 0 0 2px rgba(40, 30, 60, 0.55); }
+      #begin { margin: 0.8em 0 0; font-weight: 500; font-size: 14px; letter-spacing: 0.42em; padding-left: 0.42em; text-transform: uppercase; min-height: 1.4em; opacity: 0.8; }
+      #begin.ready { font-size: 15px; animation: breathe 2.6s ease-in-out infinite; }
+      @keyframes breathe { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+      #keys { margin: 0.6em 0 0; font-style: italic; font-size: 15px; letter-spacing: 0.04em; opacity: 0; transition: opacity 1.6s ease 0.4s; }
+      #title.ready #keys { opacity: 0.72; }
+
+      #caption { position: fixed; left: 0; right: 0; top: 8vh; text-align: center; color: var(--cream); opacity: 0; transition: opacity 1.8s; pointer-events: none;
+        text-shadow: 0 1px 2px rgba(var(--ink), 0.45), 0 2px 16px rgba(var(--ink), 0.6); }
       #caption.on { opacity: 1; }
-      #caption b { display: block; font-weight: normal; font-size: clamp(22px, 2.8vw, 38px); letter-spacing: 0.22em; text-indent: 0.22em; }
-      #caption i { display: block; margin-top: 0.5em; font-size: clamp(13px, 1.25vw, 17px); letter-spacing: 0.1em; }
+      #caption b { display: block; font-weight: 400; font-size: clamp(26px, 3.2vw, 44px); letter-spacing: 0.22em; padding-left: 0.22em; }
+      #caption i { display: block; margin-top: 0.4em; font-size: clamp(16px, 1.45vw, 21px); letter-spacing: 0.05em; }
       #pearls { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; pointer-events: none; opacity: 0; transition: opacity 2s; }
       #pearls.on { opacity: 1; }
       #pearls span { width: 15px; height: 15px; border-radius: 50%; border: 1px solid rgba(255, 240, 235, 0.6); background: rgba(43, 37, 48, 0.22); transition: all 1.2s; }
       #pearls span.got { background: radial-gradient(circle at 35% 30%, #fffaf6, #f3c7cf 55%, #c98fa6); border-color: rgba(255, 250, 246, 0.9); box-shadow: 0 0 14px rgba(255, 225, 230, 0.95); transform: scale(1.2); }
-      #hint { position: fixed; right: 18px; bottom: 16px; color: #fff6dd; font-size: 12px; letter-spacing: 0.06em; opacity: 0; transition: opacity 2s; pointer-events: none;
-        text-shadow: 0 1px 6px rgba(40, 30, 60, 0.8); text-align: right; line-height: 1.6; max-width: 34vw; }
-      #hint.on { opacity: 0.78; }
+      #hint { position: fixed; right: 18px; bottom: 16px; color: var(--cream); font-size: 15px; letter-spacing: 0.03em; opacity: 0; transition: opacity 2s; pointer-events: none;
+        text-shadow: 0 1px 6px rgba(var(--ink), 0.8); text-align: right; line-height: 1.45; max-width: 40vw; }
+      #hint.on { opacity: 0.8; }
       #hint.off { display: none; }
+      @media (max-width: 640px) { #title h1 { letter-spacing: 0.16em; padding-left: 0.16em; } #keys, #hint { display: none; } }
     </style>
   </head>
   <body>
@@ -44,8 +130,18 @@
     <div id="backdrop"></div>
     <div id="caption"><b></b><i></i></div>
     <div id="pearls"></div>
-    <div id="hint">Click, then mouse to look · WASD to swim and walk · Shift run · Space jump<br />wheel steps back · Enter full screen · M music · F2 fps · H hides this</div>
-    <div id="title"><div class="words"><h1>ČIURLIONIS</h1><h2>Kelionė · a walk through the paintings</h2><div id="bar"><i></i></div><p id="begin">Loading</p></div></div>
+    <div id="hint">Click the ground to walk there, or W A S D · drag to look · Shift run · Space jump<br />wheel steps back · Enter full screen · M music · L locks the mouse · H hides this</div>
+    <div id="title">
+      <div class="veil"></div>
+      <div class="words">
+        <h1 aria-label="Čiurlionis"><span style="--i:0">Č</span><span style="--i:1">I</span><span style="--i:2">U</span><span style="--i:3">R</span><span style="--i:4">L</span><span style="--i:5">I</span><span style="--i:6">O</span><span style="--i:7">N</span><span style="--i:8">I</span><span style="--i:9">S</span></h1>
+        <div class="orn" aria-hidden="true"><i></i><svg viewBox="-10 -10 20 20"><path d="M0-10L1.6-3.9L7.1-7.1L3.9-1.6L10 0L3.9 1.6L7.1 7.1L1.6 3.9L0 10L-1.6 3.9L-7.1 7.1L-3.9 1.6L-10 0L-3.9-1.6L-7.1-7.1L-1.6-3.9Z" fill="#f3d08a" /><circle r="1.6" fill="#fff6e2" /></svg><i></i></div>
+        <h2><b>Kelionė</b><span class="dot">·</span><em>a walk through the paintings</em></h2>
+        <div id="bar"><i></i></div>
+        <p id="begin">Loading</p>
+        <p id="keys">Click the ground or press W A S D to walk · drag to look around</p>
+      </div>
+    </div>
     <script type="module" src="/src/journey/main.js"></script>
   </body>
 </html>

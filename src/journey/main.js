@@ -161,6 +161,7 @@ function place(x, z, yaw) {
   player.vel.set(0, 0, 0); player.speed = 0; player.mode = 'move'; player.grounded = true;
   player.yaw = player.lastYaw = yaw;
   follow.yaw = yaw; follow.pivot.set(0, 0, 0);
+  walkTo.on = false;
   animator.lock = null; animator.lockOff = null;
   animator.enter(animator.locoState({ strafe: false }), 0.05);
 }
@@ -204,10 +205,60 @@ const ctx = {
 const story = createStory(ctx);
 ctx.story = story;
 
+// --- walking where he is sent: a click on the ground (or the sea) is a place to go. He makes for it as if the
+// keys were held toward it, running when it is far and walking the last of the way, until he is there, the keys are
+// touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
+const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
+const caster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitN = new THREE.Vector3(), hitP = new THREE.Vector3();
+/** The ground (or the sea's face) under the screen point (cx, cy), or null if the sky is there. */
+function groundUnder(cx, cy, max = 300) {
+  ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  caster.setFromCamera(ndc, camera);
+  const o = caster.ray.origin, d = caster.ray.direction, sea = shared.uSea.value;
+  const g = (t) => Math.max(heightAt(o.x + d.x * t, o.z + d.z * t), sea);
+  let a = 0, b = 0.25;
+  if (o.y <= g(0)) return null;
+  while (b < max) {
+    if (o.y + d.y * b <= g(b)) {
+      for (let i = 0; i < 12; i++) { const m = (a + b) / 2; if (o.y + d.y * m <= g(m)) b = m; else a = m; }
+      const x = o.x + d.x * b, z = o.z + d.z * b, h = heightAt(x, z);
+      if (h < sea) hitN.set(0, 1, 0);
+      else hitN.set(heightAt(x - 0.5, z) - heightAt(x + 0.5, z), 1, heightAt(x, z - 0.5) - heightAt(x, z + 0.5)).normalize();
+      return { point: hitP.set(x, Math.max(h, sea), z), normal: hitN };
+    }
+    a = b;
+    b += Math.max(0.2, b * 0.015);
+  }
+  return null;
+}
+function sendTo(cx, cy) {
+  const hit = groundUnder(cx, cy);
+  if (!hit) return;
+  Object.assign(walkTo, { on: true, x: hit.point.x, z: hit.point.z, best: Infinity, stall: 0 });
+  props.markAt(hit.point, hit.normal, camera.position);
+}
+/** While he is sent somewhere and nothing else moves him, the keys are held for him toward it. */
+function steer(inp, dt) {
+  if (!walkTo.on) return;
+  if (Math.hypot(inp.move.x, inp.move.y) > 0.05 || ctx.scripted || story.frozen) { walkTo.on = false; return; }
+  const dx = walkTo.x - player.feet.x, dz = walkTo.z - player.feet.z, d = Math.hypot(dx, dz);
+  if (d < 0.45) { walkTo.on = false; return; }
+  if (d < walkTo.best - 0.05) { walkTo.best = d; walkTo.stall = 0; } else if ((walkTo.stall += dt) > 1.3) { walkTo.on = false; return; }
+  // (as a stick held that way: the player reads it against the eye's heading)
+  const yaw = follow.yaw, ux = dx / d, uz = dz / d, mag = THREE.MathUtils.clamp(d / 5, 0.5, 1);
+  inp.move.y = (ux * Math.sin(yaw) + uz * Math.cos(yaw)) * mag;
+  inp.move.x = (-ux * Math.cos(yaw) + uz * Math.sin(yaw)) * mag;
+  inp.device = 'pad';
+}
+
 function tick(dt) {
   dt = Math.min(dt, 1 / 20);
   time += dt;
   const inp = input.read(dt);
+  // a click is a place to walk to once the journey has begun and while he is his own master (not on the salamander)
+  input.clickable = !story.waiting && !story.frozen && !ctx.scripted;
+  if (input.clickable) for (const c of inp.clicks ?? []) sendTo(c.x, c.y);
+  steer(inp, dt);
   if (story.frozen) { inp.move.x = inp.move.y = 0; inp.jump = false; }
   if (swim > 0.5) {
     // swimming is slower than running, and there is no sprinting or jumping in it
@@ -318,6 +369,9 @@ window.lab = {
   view(eye, target) { follow.free = eye ? { position: new THREE.Vector3(...eye), target: new THREE.Vector3(...target) } : null; },
   wait(seconds) { time += seconds; },
   go(name) { const s = SPOTS[name]; if (s) this.teleport(...s); },
+  /** As a click at screen point (x, y): he is sent to the ground there. */
+  click(x, y) { sendTo(x, y); },
+  walkTo,
 };
 
 addEventListener('resize', () => {
