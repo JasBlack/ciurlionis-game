@@ -384,9 +384,9 @@ function tick(dt) {
   // In deep water he swims. Still, he treads it upright with his arms out on the surface (as the film opens);
   // moving, he goes onto his front. Either way his chest rides at the surface and his body turns about it.
   stroke += (THREE.MathUtils.clamp((player.speed - 0.25) / 0.6, 0, 1) - stroke) * (1 - Math.exp(-2.4 * dt));
-  strokeU = (strokeU + dt * (0.36 + 0.2 * stroke)) % 1;
+  strokeU = (strokeU + dt * (0.4 + 0.32 * stroke)) % 1; // (about 1.4 s a stroke, one after another)
   // (in the breaststroke he rises a little as his arms pull in under him, and lies flat again for the glide)
-  const ph = (strokeU - 0.4) / 0.35, rise = stroke * (ph > 0 && ph < 1 ? Math.sin(ph * Math.PI) : 0);
+  const ph = (strokeU - 0.28) / 0.42, rise = stroke * (ph > 0 && ph < 1 ? Math.sin(ph * Math.PI) : 0);
   const pitch = swim * (0.12 + stroke * 1.22 - 0.3 * rise);
   const roll = 0;
   pose.copy(root);

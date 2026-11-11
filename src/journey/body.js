@@ -13,28 +13,29 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 // way he heads). The right side is its mirror, at the same moment. He glides with his arms out ahead; they sweep
 // wide and round in under his chin and shoot forward again, and as they do his knees come down, his heels up behind
 // him, and his legs kick round and together into the next glide.
+// (stroke follows stroke: the arms are out ahead only for a moment's glide before they sweep again)
 const ARMS = [
   [0.0, [0.1, -0.1, 1], [0.04, -0.06, 1]],
-  [0.18, [0.1, -0.1, 1], [0.04, -0.06, 1]],
-  [0.34, [0.75, -0.18, 0.62], [0.66, -0.32, 0.68]],
-  [0.46, [0.82, -0.42, 0.1], [-0.38, -0.55, 0.74]],
+  [0.06, [0.22, -0.12, 0.97], [0.18, -0.14, 0.97]],
+  [0.3, [0.75, -0.18, 0.62], [0.66, -0.32, 0.68]],
+  [0.44, [0.82, -0.42, 0.1], [-0.38, -0.55, 0.74]],
   [0.54, [0.45, -0.72, 0.38], [-0.48, 0.12, 0.87]],
-  [0.68, [0.12, -0.18, 1], [0.05, -0.08, 1]],
+  [0.84, [0.1, -0.1, 1], [0.04, -0.06, 1]],
 ];
 const LEGS = [
   [0.0, [0.06, -0.4, -0.92], [0.03, -0.36, -0.93]],
-  [0.4, [0.06, -0.4, -0.92], [0.03, -0.36, -0.93]],
-  [0.56, [0.38, -0.86, -0.14], [0.2, 0.45, -0.87]],
-  [0.66, [0.46, -0.6, -0.62], [0.66, -0.28, -0.7]],
-  [0.78, [0.07, -0.42, -0.9], [0.03, -0.37, -0.93]],
+  [0.38, [0.06, -0.4, -0.92], [0.03, -0.36, -0.93]],
+  [0.54, [0.38, -0.86, -0.14], [0.2, 0.45, -0.87]],
+  [0.68, [0.46, -0.6, -0.62], [0.66, -0.28, -0.7]],
+  [0.84, [0.07, -0.42, -0.9], [0.03, -0.37, -0.93]],
 ];
 // and his feet: pointed back in the glide, turned out and flexed to push the water in the kick
 const FEET = [
   [0.0, [0.02, -0.25, -1]],
-  [0.44, [0.02, -0.25, -1]],
-  [0.56, [0.62, -0.62, 0.3]],
+  [0.42, [0.02, -0.25, -1]],
+  [0.54, [0.62, -0.62, 0.3]],
   [0.68, [0.6, -0.7, 0.1]],
-  [0.8, [0.02, -0.25, -1]],
+  [0.84, [0.02, -0.25, -1]],
 ];
 const key = (keys, u, part, out) => {
   let i = keys.length - 1;
