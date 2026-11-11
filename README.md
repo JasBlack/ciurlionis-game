@@ -19,9 +19,11 @@ Then open `http://localhost:5410`. Use Chrome or Edge with a real graphics card.
 
 | | |
 |---|---|
-| Click (or tap) the ground or the sea | walk or swim there; a ring of light shows the spot |
-| Drag (left or right button, or a finger) | look |
-| L | lock the mouse for looking (again, or Esc, to free it) |
+| Click, then move the mouse | look (the first click locks the mouse to the picture; Esc frees it) |
+| Click, with the mouse locked | walk or swim to the ground under the aiming mark; a ring of light shows the spot |
+| Click or tap, with the mouse free | walk or swim to where it lands; drag to look |
+| A D, on the salamander in the air | turn (it also flies where you look) |
+| V | try the next finish (plain, card, tempera, pastel, watercolour, haze, brushed) |
 | W A S D | swim, walk; on the salamander W is faster, S slower |
 | Shift | run |
 | Space | jump |
@@ -53,6 +55,7 @@ Add these after the address, for example `http://localhost:5410/?at=garden&fps`.
 | `quality=low` | fewer strokes, for slower machines |
 | `ratio=1` | hold the render resolution (otherwise it is lowered if frames run long) |
 | `border=1` | bare card round the edge of the picture |
+| `style=0..6` | the finish: 0 plain, 1 card, 2 tempera, 3 pastel, 4 watercolour, 5 haze, 6 brushed (V cycles them in play) |
 | `canvas=1`, `impasto=0..2` | parts of the finish, for comparing (`canvas=1` lays a board's grain over the picture) |
 | `debug` | check shaders for errors while loading |
 

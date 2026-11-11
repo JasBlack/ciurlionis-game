@@ -121,6 +121,12 @@
       #hint { position: fixed; right: 18px; bottom: 16px; color: var(--cream); font-size: 15px; letter-spacing: 0.03em; opacity: 0; transition: opacity 2s; pointer-events: none;
         text-shadow: 0 1px 6px rgba(var(--ink), 0.8); text-align: right; line-height: 1.45; max-width: 40vw; }
       #hint.on { opacity: 0.8; }
+      /* where a click will send him while the mouse is locked for looking */
+      #aim { position: fixed; left: 50%; top: 66%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+        border: 1.5px solid rgba(255, 246, 226, 0.85); box-shadow: 0 0 8px rgba(255, 226, 160, 0.55), inset 0 0 6px rgba(255, 226, 160, 0.35); }
+      #aim::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff6e2; box-shadow: 0 0 6px rgba(255, 230, 170, 0.9); }
+      #aim.on { opacity: 0.85; }
+      #aim.on.dim { opacity: 0.22; }
       #hint.off { display: none; }
       @media (max-width: 640px) { #title h1 { letter-spacing: 0.16em; padding-left: 0.16em; } #keys, #hint { display: none; } }
     </style>
@@ -130,7 +136,8 @@
     <div id="backdrop"></div>
     <div id="caption"><b></b><i></i></div>
     <div id="pearls"></div>
-    <div id="hint">Click the ground to walk there, or W A S D · drag to look · Shift run · Space jump<br />wheel steps back · Enter full screen · M music · L locks the mouse · H hides this</div>
+    <div id="aim"></div>
+    <div id="hint">Move the mouse to look · click to walk to the mark, or W A S D · Shift run · Space jump<br />Esc frees the mouse · wheel steps back · Enter full screen · M music · V finish · H hides this</div>
     <div id="title">
       <div class="veil"></div>
       <div class="words">
@@ -139,7 +146,7 @@
         <h2><b>Kelionė</b><span class="dot">·</span><em>a walk through the paintings</em></h2>
         <div id="bar"><i></i></div>
         <p id="begin">Loading</p>
-        <p id="keys">Click the ground or press W A S D to walk · drag to look around</p>
+        <p id="keys">Move the mouse to look · click the ground or press W A S D to walk</p>
       </div>
     </div>
     <script type="module" src="/src/journey/main.js"></script>
