@@ -218,16 +218,61 @@ ctx.story = story;
 // touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
 const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
 let cursorCheck = 0;
-// --- the cursor: a small orb of gold with sparks turning about it, kept over the picture where the mouse is. It is
-// faint where a click would find no ground, and warms toward rose when it points the way to the next thing to find ---
-// (while a cursor is being chosen the plain one is used; ?cursor=orb shows this one, for comparing)
-const orb = q.get('cursor') === 'orb' ? document.getElementById('cursor') : null;
+// --- the cursor: a firefly. A tiny light, cream with a gold heart, and a short tail of fading dabs where the mouse has
+// just been. It is faint where a click would find no ground, and warms toward rose when it points the way to the
+// next thing to find. It is drawn by a little loop of its own, so it keeps up with the hand however slowly the picture
+// itself is coming. (The system's arrow is kept for fingers and over everything else on the page.) ---
+const fly = { el: document.getElementById('cursor'), x: 0, y: 0, on: false, faint: 0, faintGoal: 0, way: 0, wayGoal: 0, trail: [], box: null };
+const orb = fly.el; // (updateCursor below only needs to know there is one)
 const v3a = new THREE.Vector3(), v3b = new THREE.Vector3();
-if (orb) {
-  const el = renderer.domElement;
-  el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; orb.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`; orb.classList.add('on'); el.classList.add('orbed'); });
-  el.addEventListener('pointerleave', () => orb.classList.remove('on'));
-  el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) { orb.classList.remove('tap'); void orb.offsetWidth; orb.classList.add('tap'); } });
+if (fly.el) {
+  const el = renderer.domElement, c = fly.el.getContext('2d');
+  const fit = () => { const d = Math.min(2, devicePixelRatio || 1); fly.el.width = Math.round(innerWidth * d); fly.el.height = Math.round(innerHeight * d); fly.d = d; fly.box = null; };
+  fit(); addEventListener('resize', fit);
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    fly.x = e.clientX; fly.y = e.clientY; fly.on = true; el.style.cursor = 'none';
+    fly.trail.push([e.clientX, e.clientY, performance.now()]);
+  });
+  el.addEventListener('pointerleave', () => { fly.on = false; });
+  const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+  const CREAM = [255, 244, 220], GOLD = [242, 201, 106], ROSE = [243, 177, 162];
+  const rgba = (v, a) => `rgba(${v[0]},${v[1]},${v[2]},${a})`;
+  let last = performance.now();
+  const draw = (now) => {
+    requestAnimationFrame(draw);
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    fly.way += (fly.wayGoal - fly.way) * (1 - Math.exp(-5 * dt));
+    fly.faint += (fly.faintGoal - fly.faint) * (1 - Math.exp(-6 * dt));
+    while (fly.trail.length && now - fly.trail[0][2] > 260) fly.trail.shift();
+    if (fly.box) c.clearRect(...fly.box);
+    fly.box = null;
+    if (!fly.on) return;
+    const d = fly.d, w = fly.way, a0 = 1 - 0.6 * fly.faint, t = now / 1000;
+    let x0 = fly.x, y0 = fly.y, x1 = fly.x, y1 = fly.y;
+    c.setTransform(d, 0, 0, d, 0, 0);
+    // the tail: small dabs where it has been, fading as they age
+    for (const [x, y, at] of fly.trail) {
+      const k = 1 - (now - at) / 260;
+      c.fillStyle = rgba(mix(GOLD, ROSE, w), a0 * k * (0.55 + 0.3 * w));
+      c.beginPath(); c.arc(x, y, 0.5 + 1.0 * k, 0, 6.2832); c.fill();
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    // its light, breathing a little, and its body, with a touch of ink under it to read over pale ground
+    c.fillStyle = rgba(mix(GOLD, ROSE, w), a0 * (0.16 + 0.07 * Math.sin(t * 4)));
+    c.beginPath(); c.arc(fly.x, fly.y, 4, 0, 6.2832); c.fill();
+    c.shadowColor = 'rgba(24,18,52,0.55)'; c.shadowBlur = 2 * d; c.shadowOffsetY = 0.5 * d;
+    c.fillStyle = rgba(mix(CREAM, GOLD, w), a0);
+    c.beginPath(); c.arc(fly.x, fly.y, 2, 0, 6.2832); c.fill();
+    c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0;
+    c.strokeStyle = `rgba(35,26,64,${0.5 * a0})`; c.lineWidth = 0.6; c.stroke();
+    c.fillStyle = rgba(mix(GOLD, ROSE, w * 0.7), a0 * 0.9);
+    c.beginPath(); c.arc(fly.x, fly.y, 0.8, 0, 6.2832); c.fill();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    const m = 8;
+    fly.box = [Math.floor((x0 - m) * d), Math.floor((y0 - m) * d), Math.ceil((x1 - x0 + 2 * m) * d), Math.ceil((y1 - y0 + 2 * m) * d)];
+  };
+  requestAnimationFrame(draw);
 }
 function updateCursor(inp) {
   const c = inp.cursor;
@@ -244,8 +289,8 @@ function updateCursor(inp) {
       onWay = v3a.length() > 0.8 && v3b.length() > 0.5 && v3a.normalize().dot(v3b.normalize()) > Math.cos(0.5);
     }
   }
-  orb.classList.toggle('nowalk', !ctx.scripted && (!input.clickable || !ground));
-  orb.classList.toggle('way', onWay && !story.waiting);
+  fly.faintGoal = !ctx.scripted && (!input.clickable || !ground) ? 1 : 0;
+  fly.wayGoal = onWay && !story.waiting ? 1 : 0;
 }
 const caster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitN = new THREE.Vector3(), hitP = new THREE.Vector3();
 /** The ground (or the sea's face) under the screen point (cx, cy), or null if the sky is there. */
