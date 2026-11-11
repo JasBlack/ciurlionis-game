@@ -13,18 +13,26 @@ import { loadMan } from '../figure/man.js';
 import { pinDabs } from './pins.js';
 import { rng } from './noise.js';
 
-// Where his hair begins, as a height on the head he was made with, at each distance z out from its middle:
-// low on the nape, over the tops of the ears, high across the forehead. The same line is used three times: the
-// scalp above it is painted as hair, the cap of hair sinks into the head below it, and no curl is laid under it.
-const NAPE = 1.7, EAR = 1.768, BROW = 1.806;
+// Where his hair begins, as a height on the head he was made with, at (x, z): low on the nape, over the tops of the
+// ears and down a little in front of them, and across the forehead, which is high on his right, where his hair is
+// parted, and lower on his left, where the wave comes over (as in his portrait). The same line is used three times:
+// the scalp above it is painted as hair, the cap of hair sinks into the head below it, and no curl is laid under it.
+const NAPE = 1.7, EAR = 1.762, BROW = 1.822, PART = -0.034;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-const hairLine = (z) => { const h = NAPE + (EAR - NAPE) * sstep(-0.06, -0.005, z); return h + (BROW - h) * sstep(0.035, 0.07, z); };
+const hairLine = (x, z) => {
+  let h = NAPE + (EAR - NAPE) * sstep(-0.06, -0.005, z);
+  h -= 0.056 * sstep(0.058, 0.074, Math.abs(x)) * sstep(-0.004, 0.012, z) * (1 - sstep(0.03, 0.045, z));
+  const brow = BROW + 0.018 * (1 - sstep(-0.06, 0.02, x)) - 0.006 * sstep(0, 0.05, x);
+  return h + (brow - h) * sstep(0.035, 0.07, z);
+};
 // How wide the jacket stands open at each height of his chest (the lapels' edge), for the paint and for the strokes.
 const opening = (y) => 0.026 + 0.064 * Math.min(1, Math.max(0, (y - 1.18) / 0.32));
 const HAIRLINE_GLSL = /* glsl */ `
-float hairLine(float z) {
+float hairLine(float x, float z) {
   float h = mix(${NAPE}, ${EAR}, smoothstep(-0.06, -0.005, z));
-  return mix(h, ${BROW}, smoothstep(0.035, 0.07, z));
+  h -= 0.056 * smoothstep(0.058, 0.074, abs(x)) * smoothstep(-0.004, 0.012, z) * (1.0 - smoothstep(0.03, 0.045, z));
+  float brow = ${BROW} + 0.018 * (1.0 - smoothstep(-0.06, 0.02, x)) - 0.006 * smoothstep(0.0, 0.05, x);
+  return mix(h, brow, smoothstep(0.035, 0.07, z));
 }`;
 
 const PAINT_FRAG = /* glsl */ `
@@ -56,7 +64,7 @@ void main() {
   }
   if (uScalp > 0.5) {
     // no skin shows under his hair: the scalp itself is hair above the hairline
-    if (vBind.y > hairLine(vBind.z) + (n - 0.5) * 0.01) c = paint3(uL3, uM3, uS3, lit, n);
+    if (vBind.y > hairLine(vBind.x, vBind.z) + (n - 0.5) * 0.01) c = paint3(uL3, uM3, uS3, lit, n);
     // his collar: linen standing up round the neck from the jacket to just under the jaw, one piece with the shirt
     else if (ax < 0.1 && vBind.y > 1.5 && vBind.y < 1.614 - 0.018 * smoothstep(0.02, 0.07, vBind.z)) c = paint3(vec3(0.99, 0.98, 0.95), vec3(0.88, 0.89, 0.94), vec3(0.66, 0.69, 0.82), lit, n);
     else if (vBind.y > 1.6) {
@@ -195,10 +203,13 @@ export async function createPainter(shared, onProgress) {
   // --- his hair: one cap over the whole scalp, with rounded masses of curls standing on it. Below the hairline the
   // cap sinks into his head, so it is joined to him all the way round and nothing shows between ---
   const CAP = { c: [0, 1.762, -0.006], r: [0.092, 0.1, 0.112] };
+  // (swept up and back from a parting on his right, PART; the wave on his left rolls forward over the temple; the
+  // masses at the sides come down over the tops of his ears and a little in front of them)
   const LUMPS = [
-    [0, 1.848, 0.0, 0.056], [0, 1.842, 0.05, 0.046], [-0.046, 1.838, 0.036, 0.047], [0.046, 1.838, 0.036, 0.047],
-    [-0.03, 1.834, 0.07, 0.035], [0.03, 1.834, 0.07, 0.035],
-    [-0.08, 1.808, 0.004, 0.049], [0.08, 1.808, 0.004, 0.049], [-0.088, 1.78, -0.022, 0.043], [0.088, 1.78, -0.022, 0.043],
+    [0.004, 1.852, -0.004, 0.056], [0.008, 1.852, 0.03, 0.045], [-0.05, 1.846, 0.014, 0.042], [0.05, 1.842, 0.03, 0.046],
+    [-0.022, 1.85, 0.044, 0.028], [0.042, 1.836, 0.058, 0.033],
+    [-0.078, 1.812, 0.0, 0.046], [0.081, 1.806, 0.008, 0.05], [-0.086, 1.772, -0.01, 0.04], [0.088, 1.772, -0.008, 0.042],
+    [-0.079, 1.752, 0.02, 0.021], [0.08, 1.752, 0.021, 0.022],
     [0, 1.822, -0.07, 0.056], [-0.048, 1.784, -0.086, 0.048], [0.048, 1.784, -0.086, 0.048], [0, 1.744, -0.09, 0.044],
   ];
   {
@@ -207,7 +218,7 @@ export async function createPainter(shared, onProgress) {
       const n = [cp.getX(i), cp.getY(i), cp.getZ(i)];
       const at = (k) => n.map((v, j) => CAP.c[j] + v * CAP.r[j] * k);
       let p = at(1);
-      const under = hairLine(p[2]) - p[1];
+      const under = hairLine(p[0], p[2]) - p[1];
       if (under > 0) p = at(1 - 0.34 * sstep(0, 0.03, under));
       cp.setXYZ(i, ...p);
     }
@@ -219,7 +230,9 @@ export async function createPainter(shared, onProgress) {
   }
 
   // --- strokes carried by a bone: each is [x, y, z, dx, dy, dz, nx, ny, nz, across, along, palette] ---
-  const PAL = [HAIR, MOUSTACHE, LINEN, BOW, LAPEL, SEAM, CHEEK, DARK, CONTOUR, HAIRLIGHT];
+  // (10: his brows, the deep brown of his hair, not black)
+  const BROWS = [[0.4, 0.27, 0.18], [0.3, 0.2, 0.14], [0.19, 0.12, 0.1]];
+  const PAL = [HAIR, MOUSTACHE, LINEN, BOW, LAPEL, SEAM, CHEEK, DARK, CONTOUR, HAIRLIGHT, BROWS];
   const list = (k) => PAL.map((p) => `vec3(${p[k].map((x) => x.toFixed(3))})`).join(', ');
   function carried(bone, strokes, { minPx = [2, 2.6], cells = [0, 3], lift = 0.4, edge = -0.2, jitter = 0.14 } = {}) {
     const holder = hang(bone, new THREE.Object3D());
@@ -252,16 +265,16 @@ export async function createPainter(shared, onProgress) {
   // lighter ones on their crests
   const curls = [], lights = [];
   const curl = (p, n) => {
-    if (p[1] < hairLine(p[2]) + 0.006) return; // none below the hairline
-    const sx = p[0] < 0 ? -1 : 1, top = p[2] > 0.02 && p[1] > 1.825;
-    const flow = top ? [sx * 0.6, 0.15, -0.75] : [sx * 0.8, -0.5, -0.38];
+    if (p[1] < hairLine(p[0], p[2]) + 0.006) return; // none below the hairline
+    const sx = p[0] < PART ? -1 : 1, top = p[2] > 0.02 && p[1] > 1.825;
+    const flow = top ? [sx * 0.35, 0.1, -0.9] : [sx * 0.7, -0.45, -0.55];
     const dn = flow[0] * n[0] + flow[1] * n[1] + flow[2] * n[2];
     let t = flow.map((v, j) => v - n[j] * dn);
     const b = [n[1] * t[2] - n[2] * t[1], n[2] * t[0] - n[0] * t[2], n[0] * t[1] - n[1] * t[0]];
-    const a = 0.75 * Math.sin(p[1] * 95 + p[2] * 60 + Math.abs(p[0]) * 45) + (rand() - 0.5) * 0.5, ca = Math.cos(a), sa = Math.sin(a);
+    const a = 0.55 * Math.sin(p[1] * 95 + p[2] * 60 + Math.abs(p[0]) * 45) + (rand() - 0.5) * 0.35, ca = Math.cos(a), sa = Math.sin(a);
     t = t.map((v, j) => v * ca + b[j] * sa);
     const light = rand() < 0.14;
-    (light ? lights : curls).push([...p, ...t, ...n, light ? 0.015 + 0.006 * rand() : 0.027 + 0.012 * rand(), light ? 0.045 + 0.02 * rand() : 0.055 + 0.03 * rand(), light ? 9 : 0]);
+    (light ? lights : curls).push([...p, ...t, ...n, light ? 0.014 + 0.005 * rand() : 0.024 + 0.01 * rand(), light ? 0.04 + 0.016 * rand() : 0.045 + 0.022 * rand(), light ? 9 : 0]);
   };
   const ball = () => { const u = rand() * 2 - 1, a = rand() * Math.PI * 2, q = Math.sqrt(1 - u * u); return [Math.cos(a) * q, u, Math.sin(a) * q]; };
   const inCap = (p) => Math.hypot(...p.map((v, j) => (v - CAP.c[j]) / CAP.r[j])) < 1;
@@ -277,7 +290,7 @@ export async function createPainter(shared, onProgress) {
     }
   }
   carried('Head', lights, { cells: [3, 1], lift: 0.3, edge: -0.1, jitter: 0.12 });
-  carried('Head', curls, { cells: [3, 1], lift: 0.1, edge: -0.3, jitter: 0.2 });
+  carried('Head', curls, { cells: [3, 1], lift: 0.08, edge: -0.12, jitter: 0.18 });
 
   // the face: the moustache (broad under the nose, turning down and then a little up at its ends), brows, the
   // line of each upper lid
@@ -288,10 +301,15 @@ export async function createPainter(shared, onProgress) {
     face.push([sx * 0.041, 1.672, 0.118, sx, -0.16, -0.4, sx * 0.3, 0.1, 1, 0.032, 0.05, 1]);
     face.push([sx * 0.061, 1.671, 0.1, sx, 0.22, -0.65, sx * 0.5, 0, 1, 0.022, 0.036, 1]);
     face.push([sx * 0.072, 1.682, 0.087, sx * 0.4, 1, -0.4, sx * 0.7, 0, 1, 0.012, 0.022, 1]);
-    // brows, heavy and a little drawn together; the line of each upper lid
-    face.push([sx * 0.02, 1.7565, 0.109, sx, 0.26, -0.1, 0, 0.2, 1, 0.0125, 0.03, 7]);
-    face.push([sx * 0.044, 1.76, 0.1, sx, -0.2, -0.38, sx * 0.3, 0.2, 1, 0.0105, 0.028, 7]);
-    face.push([sx * 0.031, 1.7462, 0.101, sx, 0, -0.08, 0, 0, 1, 0.0058, 0.03, 7]);
+    // each brow one unbroken stroke of deep brown, heavy and nearly level, as in his portrait: thickest at its inner
+    // end, rising a little over the eye and thinning toward the temple
+    for (let i = 0; i <= 6; i++) {
+      const u = i / 6, x = 0.011 + 0.049 * u, y = 1.7518 + 0.0058 * Math.sin(u * Math.PI * 0.85) - 0.0012 * u, z = 0.1165 - 0.375 * x;
+      const dy = (0.0058 * Math.PI * 0.85 * Math.cos(u * Math.PI * 0.85) - 0.0012) / 0.049;
+      face.push([sx * x, y, z, sx, dy, -0.375, sx * 0.35 * u, 0.2, 1, 0.0142 - 0.0055 * u, 0.017, 10]);
+    }
+    // the crease of the upper lid: only a little warm shade lying on the eye, so it is not read as a second brow
+    face.push([sx * 0.031, 1.7432, 0.1015, sx, 0, -0.08, 0, 0, 1, 0.0034, 0.024, 8]);
   }
   face.push([0, 1.684, 0.131, 1, 0, 0, 0, 0.1, 1, 0.022, 0.03, 1]);
   face.push([0.011, 1.722, 0.122, 0.12, -1, 0.35, 0.6, 0, 1, 0.007, 0.04, 8], [0, 1.698, 0.126, 1, 0, 0, 0, -0.4, 1, 0.007, 0.026, 8]);

@@ -22,7 +22,9 @@
       :root { --cream: #fff6e2; --gold: #f3d08a; --ink: 30, 24, 60; --serif: 'Cormorant', Georgia, 'Times New Roman', serif; }
       html, body { margin: 0; height: 100%; background: #3a5db4; overflow: hidden; font-family: var(--serif); }
       #view, #view canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-      #view canvas { cursor: default; touch-action: none; }
+      /* the cursor: a small star of the painting's own, faint where a click would find no ground */
+      #view canvas { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='-13 -13 26 26'%3E%3Cpath d='M0,-10L2.6,-2.6L10,0L2.6,2.6L0,10L-2.6,2.6L-10,0L-2.6,-2.6Z' fill='%23fff3d6' fill-opacity='1' stroke='%23231c46' stroke-opacity='0.90' stroke-width='1.2'/%3E%3Ccircle r='1.7' fill='%23e8b85a' fill-opacity='1'/%3E%3C/svg%3E") 13 13, crosshair; touch-action: none; }
+      #view canvas.nowalk { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='-13 -13 26 26'%3E%3Cpath d='M0,-10L2.6,-2.6L10,0L2.6,2.6L0,10L-2.6,2.6L-10,0L-2.6,-2.6Z' fill='%23fff3d6' fill-opacity='0.4' stroke='%23231c46' stroke-opacity='0.45' stroke-width='1.2'/%3E%3Ccircle r='1.7' fill='%23e8b85a' fill-opacity='0.4'/%3E%3C/svg%3E") 13 13, default; }
       #view canvas.dragging { cursor: grabbing; }
 
       /* what is seen until the picture is ready: the opening painting laid in flat, its sky of pastel clouds over
@@ -127,12 +129,6 @@
       #hint { position: fixed; right: 18px; bottom: 16px; color: var(--cream); font-size: 15px; letter-spacing: 0.03em; opacity: 0; transition: opacity 2s; pointer-events: none;
         text-shadow: 0 1px 6px rgba(var(--ink), 0.8); text-align: right; line-height: 1.45; max-width: 40vw; }
       #hint.on { opacity: 0.8; }
-      /* where a click will send him while the mouse is locked for looking */
-      #aim { position: fixed; left: 50%; top: 66%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.4s;
-        border: 1.5px solid rgba(255, 246, 226, 0.85); box-shadow: 0 0 8px rgba(255, 226, 160, 0.55), inset 0 0 6px rgba(255, 226, 160, 0.35); }
-      #aim::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff6e2; box-shadow: 0 0 6px rgba(255, 230, 170, 0.9); }
-      #aim.on { opacity: 0.85; }
-      #aim.on.dim { opacity: 0.22; }
       #hint.off { display: none; }
       @media (max-width: 640px) { #title h1 { letter-spacing: 0.16em; padding-left: 0.16em; } #keys, #hint { display: none; } }
     </style>
@@ -142,8 +138,7 @@
     <div id="backdrop"></div>
     <div id="caption"><b></b><i></i></div>
     <div id="pearls"></div>
-    <div id="aim"></div>
-    <div id="hint">Move the mouse to look · click to walk to the mark, or W A S D · Shift run · Space jump<br />Esc frees the mouse · wheel steps back · Enter full screen · M music · V finish · H hides this</div>
+    <div id="hint">Move the mouse to look (to the edge to turn) · click the ground to walk there, or W A S D · Shift run · Space jump<br />drag to turn faster · wheel steps back · Enter full screen · M music · V finish · H hides this</div>
     <div id="title">
       <div class="veil"></div>
       <div class="words">
@@ -152,7 +147,7 @@
         <h2><b>Kelionė</b><span class="dot">·</span><em>a walk through the paintings</em></h2>
         <div id="bar"><i></i></div>
         <p id="begin">Loading</p>
-        <p id="keys">Move the mouse to look · click the ground or press W A S D to walk</p>
+        <p id="keys">Move the mouse to look about · click the ground or press W A S D to walk</p>
       </div>
     </div>
     <script type="module" src="/src/journey/main.js"></script>

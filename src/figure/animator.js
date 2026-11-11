@@ -507,18 +507,14 @@ export class Animator {
     const toT = T.clone().sub(H);
     const d = clamp(toT.length(), Math.abs(l1 - l2) + 1e-3, l1 + l2 - 1e-3);
     toT.setLength(d);
-    // the bend plane: hip, ankle and the knee as animated
+    // the bend plane: the knee goes forward, each turned a little out over its foot. (It used to follow the knee
+    // as animated, but where the clip has the leg near straight that says nothing, and folding the leg on a slope
+    // threw the knee from side to side from one frame to the next: his knees wobbled walking up the hills)
     const axis = toT.clone().normalize();
-    // the knee bends in its animated plane, but always forward: on a high step or the edge of a
-    // platform the animated knee can lie behind the hip-ankle line and the leg would invert
     const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(this.object.quaternion);
-    const pole = K.clone().sub(H); pole.sub(axis.clone().multiplyScalar(pole.dot(axis)));
-    const fwdP = fwd.clone().sub(axis.clone().multiplyScalar(fwd.dot(axis))).normalize();
-    // blended in smoothly as the animated knee turns away from forward, so it never switches over
-    const along = pole.lengthSq() < 1e-6 ? -1 : pole.clone().normalize().dot(fwdP);
-    const pull = clamp((0.5 - along) / 0.7, 0, 1);
-    pole.normalize().multiplyScalar(1 - pull).addScaledVector(fwdP, pull * 1.2 + 1e-3);
-    pole.normalize();
+    const lat = new THREE.Vector3(side === 'l' ? 1 : -1, 0, 0).applyQuaternion(this.object.quaternion);
+    const pole = fwd.addScaledVector(lat, 0.05);
+    pole.sub(axis.clone().multiplyScalar(pole.dot(axis))).normalize();
     const cosA = clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1);
     const newK = H.clone().addScaledVector(axis, l1 * cosA).addScaledVector(pole, l1 * Math.sqrt(1 - cosA * cosA));
     // turn the thigh so the knee goes to newK, then the calf so the ankle goes to T

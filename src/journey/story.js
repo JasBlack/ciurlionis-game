@@ -239,14 +239,17 @@ export function createStory(ctx) {
       fl.pos.y = sea() + 0.1;
       if (fl.pos.x > P.gate.x + 8) {
         fl.air = true; fl.t = 0;
-        hud.caption('', 'It flies where you look · W faster · S slower', 8);
+        hud.caption('', 'It flies toward the mouse: to the sides to turn, up to climb, down to dive · W faster · S slower', 9);
       }
     } else {
       fl.speed = damp(fl.speed, 17 * boost, 1.2, dt);
       // (it goes where he looks; A and D turn the look, for those without a mouse)
       follow.yaw -= clamp(inp.move.x, -1, 1) * 1.1 * dt;
       fl.yaw += wrap(follow.yaw - fl.yaw) * Math.min(1, 1.9 * dt);
-      const want = clamp(-(follow.pitch - 0.3) * 1.3 + (fl.t < 3.5 ? 0.4 : 0), -0.7, 0.75); // at first it rises by itself
+      // it climbs toward the mouse when the mouse is above the middle of the picture and stoops when it is below
+      // (without a mouse, a finger dragged up or down does as much); at first it rises by itself
+      const c = inp.cursor, aim = c?.inside ? Math.sign(c.y) * Math.max(0, Math.abs(c.y) - 0.08) / 0.92 : clamp(ctx.climb ?? 0, -1, 1);
+      const want = clamp(-aim * 0.85 + (fl.t < 3.5 ? 0.4 : 0), -0.7, 0.75);
       fl.pitch = damp(fl.pitch, want, 2.2, dt);
       const cp = Math.cos(fl.pitch);
       fl.pos.x += Math.sin(fl.yaw) * cp * fl.speed * dt;
