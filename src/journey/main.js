@@ -220,7 +220,8 @@ const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
 let cursorCheck = 0;
 // --- the cursor: a small orb of gold with sparks turning about it, kept over the picture where the mouse is. It is
 // faint where a click would find no ground, and warms toward rose when it points the way to the next thing to find ---
-const orb = document.getElementById('cursor');
+// (while a cursor is being chosen the plain one is used; ?cursor=orb shows this one, for comparing)
+const orb = q.get('cursor') === 'orb' ? document.getElementById('cursor') : null;
 const v3a = new THREE.Vector3(), v3b = new THREE.Vector3();
 if (orb) {
   const el = renderer.domElement;
