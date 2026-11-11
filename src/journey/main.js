@@ -184,7 +184,6 @@ function reachOut(dt) {
   }
 }
 
-const size = new THREE.Vector2();
 const root = new THREE.Vector3();  // where he is, for the eye and the story
 const pose = new THREE.Vector3();  // where his feet are drawn: in the water his body turns about his chest
 let swim = 0;    // 0 on his feet .. 1 swimming
@@ -340,9 +339,8 @@ function tick(dt) {
   const hide = ctx.scripted?.hide ?? false;
   man.object.visible = figure.dabs.visible = !hide;
   camera.updateMatrixWorld(true);
-  renderer.getDrawingBufferSize(size);
   shared.uTime.value = time;
-  shared.uPixel.value = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / size.y;
+  shared.uPixel.value = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / frame.inner.y; // (its pixels are the picture's, not the screen's)
   shared.uFocus.value.copy(root);
 
   story.update(dt, root, inp);
@@ -371,6 +369,8 @@ window.lab = {
   go(name) { const s = SPOTS[name]; if (s) this.teleport(...s); },
   /** As a click at screen point (x, y): he is sent to the ground there. */
   click(x, y) { sendTo(x, y); },
+  /** Paints the picture at r pixels a CSS pixel, as the governor would. */
+  resolution(r) { setResolution(r); },
   walkTo,
 };
 
@@ -413,9 +413,10 @@ for (let i = 0; i < (capture ? 1 : 5); i++) {
 }
 lap('first frame');
 
-// --- keeping it moving. If frames run long for a while the picture is drawn with fewer pixels (never fewer than
-// 0.6 of the screen's), which is what costs most on a large screen; when frames have been quick for a while it is
-// tried a step higher again, and if that can't be held it settles below it. ---
+// --- keeping it moving. If frames run long for a while the picture is painted with fewer pixels (never fewer than
+// 0.6 a CSS pixel), which is what costs most on a large screen; when frames have been quick for a while it is tried a
+// step higher again, and if that can't be held it settles below it. Only the picture the world is painted into
+// changes size: the screen's canvas keeps its own, so changing it never shows a wiped (black) canvas. ---
 const meter = document.createElement('div');
 meter.style.cssText = 'position:fixed;left:12px;top:10px;color:#fff6dd;font:12px/1.4 monospace;text-shadow:0 1px 4px #000;pointer-events:none;display:none';
 document.body.appendChild(meter);
@@ -424,18 +425,22 @@ addEventListener('keydown', (e) => { if (e.code === 'F2') meter.style.display = 
 const fixedRatio = q.has('ratio') ? +q.get('ratio') : null;
 if (fixedRatio) { renderer.setPixelRatio(fixedRatio); renderer.setSize(innerWidth, innerHeight); frame.resize(); }
 let slow = 0, quick = 0, seen = 0, frames = 0, played = 0, raisedAt = -1e9;
-let ceiling = renderer.getPixelRatio(); // the most it is ever drawn at
+let ceiling = renderer.getPixelRatio(); // the most it is ever painted at (pixels a CSS pixel)
+/** Paints the picture at r pixels a CSS pixel (at most the canvas's own). */
+function setResolution(r) {
+  frame.resize(Math.min(1, r / renderer.getPixelRatio()));
+  slow = quick = 0;
+}
 function govern(dt) {
   if (dt > 0.25) return; // a pause, not a slow frame
   frames++; seen += dt;
-  if (seen > 0.5) { meter.textContent = `${Math.round(frames / seen)} fps · ${renderer.getPixelRatio().toFixed(2)}x · ${renderer.domElement.width}x${renderer.domElement.height}`; frames = 0; seen = 0; }
+  if (seen > 0.5) { meter.textContent = `${Math.round(frames / seen)} fps · ${(renderer.getPixelRatio() * frame.scale).toFixed(2)}x · ${frame.inner.x}x${frame.inner.y}`; frames = 0; seen = 0; }
   // only while it is being played: a window in the background is slowed by the browser, not by the picture
   if (fixedRatio || !document.hasFocus()) { slow = quick = 0; return; }
   played += dt;
   slow = dt > 1 / 40 ? slow + dt : Math.max(0, slow - dt * 2);
   quick = dt < 1 / 52 ? quick + dt : 0;
-  const ratio = renderer.getPixelRatio();
-  const set = (r) => { renderer.setPixelRatio(r); renderer.setSize(innerWidth, innerHeight); frame.resize(); slow = quick = 0; };
+  const ratio = renderer.getPixelRatio() * frame.scale, set = setResolution;
   if (slow > 1.5 && ratio > 0.6) {
     // (if it had just been raised and could not hold that, it is not raised so far again)
     if (played - raisedAt < 12) ceiling = Math.max(0.6, ratio * 0.9);
