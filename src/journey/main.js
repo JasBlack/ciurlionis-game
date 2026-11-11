@@ -135,6 +135,7 @@ const follow = new Follow(camera);
 follow.yaw = Math.PI;
 follow.pitch = 0.0;
 follow.lift = 1.15;
+follow.side = 0; // (he stands in the middle of the picture, not off to one side: on a phone the offset put him at its edge)
 follow.sink = 0.6;
 const input = new Input(renderer.domElement, { pads: !capture && !q.has('nopad') });
 physics.step();

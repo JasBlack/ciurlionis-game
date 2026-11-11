@@ -114,10 +114,14 @@
       #title.ready #keys { opacity: 0.72; }
 
       #caption { position: fixed; left: 0; right: 0; top: calc(8vh + env(safe-area-inset-top, 0px)); padding: 0 max(28px, env(safe-area-inset-right, 0px)) 0 max(28px, env(safe-area-inset-left, 0px)); text-align: center; color: var(--cream); opacity: 0; transition: opacity 1.8s; pointer-events: none;
-        text-shadow: 0 1px 2px rgba(var(--ink), 0.6), 0 0 1px rgba(var(--ink), 0.5), 0 2px 18px rgba(var(--ink), 0.7); }
+        text-shadow: 0 1px 2px rgba(var(--ink), 0.75), 0 0 2px rgba(var(--ink), 0.6), 0 2px 20px rgba(var(--ink), 0.75); }
       #caption.on { opacity: 1; }
-      #caption b { display: block; font-weight: 400; font-size: clamp(26px, 3.2vw, 44px); letter-spacing: 0.22em; padding-left: 0.22em; }
-      #caption i { display: block; margin: 0.4em auto 0; max-width: 46em; font-size: clamp(16px, 1.45vw, 21px); letter-spacing: 0.05em; text-wrap: balance; }
+      /* a soft shade behind the words (no box: it fades out at its edges), so they read over pale sky */
+      #caption { isolation: isolate; }
+      #caption::before { content: ''; position: absolute; left: 4%; right: 4%; top: -1.4em; bottom: -1.4em; z-index: -1;
+        background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--ink), 0.34), rgba(var(--ink), 0.14) 55%, rgba(var(--ink), 0) 78%); }
+      #caption b { display: block; font-weight: 500; font-size: clamp(32px, 3.8vw, 54px); letter-spacing: 0.2em; padding-left: 0.2em; }
+      #caption i { display: block; margin: 0.4em auto 0; max-width: 42em; font-size: clamp(21px, 1.95vw, 28px); font-weight: 500; line-height: 1.4; letter-spacing: 0.03em; text-wrap: balance; }
       #caption i .lead { font-style: italic; }
       /* the pearls he has found: a small constellation, flat, its stars lit one by one */
       #pearls { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); pointer-events: none; opacity: 0; transition: opacity 2s; filter: drop-shadow(0 0 1.5px rgba(20, 16, 50, 0.75)) drop-shadow(0 1px 6px rgba(20, 16, 50, 0.45)); }
@@ -129,15 +133,15 @@
       #pearls path.new { animation: twinkle 1.6s ease-out; }
       @keyframes twinkle { 0% { transform: scale(2.4) rotate(45deg); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
       @media (prefers-reduced-motion: reduce) { #pearls path.new { animation: none; } }
-      #hint { position: fixed; right: 18px; bottom: 16px; color: var(--cream); font-size: 15px; letter-spacing: 0.03em; opacity: 0; transition: opacity 2s; pointer-events: none;
-        text-shadow: 0 1px 6px rgba(var(--ink), 0.8); text-align: right; line-height: 1.45; max-width: 40vw; }
+      #hint { position: fixed; right: 18px; bottom: 16px; color: var(--cream); font-size: 16.5px; letter-spacing: 0.03em; opacity: 0; transition: opacity 2s; pointer-events: none;
+        text-shadow: 0 1px 6px rgba(var(--ink), 0.8); text-align: right; line-height: 1.45; max-width: 42vw; }
       #hint.on { opacity: 0.8; }
       #hint.off { display: none; }
       @media (max-width: 640px) {
         #title h1 { letter-spacing: 0.16em; padding-left: 0.16em; } #keys, #hint { display: none; }
-        #caption { padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
-        #caption b { font-size: 24px; letter-spacing: 0.16em; padding-left: 0.16em; }
-        #caption i { font-size: 16px; line-height: 1.4; max-width: 22em; }
+        #caption { padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+        #caption b { font-size: 32px; letter-spacing: 0.14em; padding-left: 0.14em; }
+        #caption i { font-size: 22px; line-height: 1.38; max-width: 19em; }
         #caption i .lead { display: block; margin-bottom: 0.15em; }
         #caption i .sep { display: none; }
       }
