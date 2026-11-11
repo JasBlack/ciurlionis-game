@@ -34,6 +34,7 @@ uniform vec3 uL2; uniform vec3 uM2; uniform vec3 uS2;
 uniform vec3 uL3; uniform vec3 uM3; uniform vec3 uS3;
 uniform float uScalp; // on his skin: 1 paints the scalp as hair and the neck as a stand collar
 uniform float uFront; // on his suit: 1 paints the shirt front, the waistcoat and the lapels' edges
+uniform float uEye;   // on his eyes: 1 paints the iris and the pupil
 uniform vec2 uSleeve; // on his skin: from where to where along the arm it is sleeve; then a cuff
 uniform vec3 uTint;
 uniform float uGrain;
@@ -58,6 +59,32 @@ void main() {
     if (vBind.y > hairLine(vBind.z) + (n - 0.5) * 0.01) c = paint3(uL3, uM3, uS3, lit, n);
     // his collar: linen standing up round the neck from the jacket to just under the jaw, one piece with the shirt
     else if (ax < 0.1 && vBind.y > 1.5 && vBind.y < 1.614 - 0.018 * smoothstep(0.02, 0.07, vBind.z)) c = paint3(vec3(0.99, 0.98, 0.95), vec3(0.88, 0.89, 0.94), vec3(0.66, 0.69, 0.82), lit, n);
+    else if (vBind.y > 1.6) {
+      // his face, modelled in colour as the film paints it: blood in the cheeks, the nose and the ears, warm shade
+      // in the hollows of the eyes and down the sides of the face, the lower lip, the shadow under it
+      vec2 f = vec2(ax, vBind.y);
+      float front = smoothstep(0.02, 0.06, vBind.z);
+      vec2 q = (f - vec2(0.05, 1.697)) / vec2(0.024, 0.02);
+      c = mix(c, c * vec3(1.0, 0.7, 0.66) + vec3(0.05, 0.0, 0.0), 0.62 * exp(-dot(q, q)) * front);
+      q = (f - vec2(0.0, 1.704)) / vec2(0.015, 0.013);
+      c = mix(c, c * vec3(1.0, 0.78, 0.72), 0.5 * exp(-dot(q, q)) * front);
+      q = (f - vec2(0.031, 1.741)) / vec2(0.021, 0.012);
+      c = mix(c, c * vec3(0.82, 0.62, 0.58), 0.55 * exp(-dot(q, q)) * front);
+      q = (f - vec2(0.0, 1.661)) / vec2(0.019, 0.0055);
+      c = mix(c, vec3(0.8, 0.42, 0.38) * (0.62 + 0.38 * lit), 0.7 * exp(-dot(q, q)) * front);
+      q = (f - vec2(0.0, 1.649)) / vec2(0.024, 0.005);
+      c *= 1.0 - 0.16 * exp(-dot(q, q)) * front;
+      c = mix(c, c * vec3(0.9, 0.74, 0.7), 0.5 * smoothstep(0.05, 0.08, ax) * front);
+      if (ax > 0.076 && vBind.y > 1.685 && vBind.y < 1.765) c = mix(c, c * vec3(1.0, 0.7, 0.66), 0.6);
+    }
+  }
+  if (uEye > 0.5 && vBind.z > 0.0905) {
+    // grey-blue, a dark ring round it, the pupil; the lid's shade across the top
+    float r = length(vec2(ax - 0.031, vBind.y - 1.7352));
+    if (r < 0.0027) c = vec3(0.07, 0.07, 0.1);
+    else if (r < 0.0064) c = mix(vec3(0.5, 0.6, 0.68), vec3(0.3, 0.4, 0.5), smoothstep(0.003, 0.0064, r));
+    else if (r < 0.0073) c = vec3(0.2, 0.25, 0.33);
+    c *= 1.0 - 0.3 * smoothstep(1.7375, 1.7455, vBind.y);
   }
   if (uFront > 0.5 && vBind.z > 0.04) {
     // the front of him: the shirt in the V of the waistcoat, the waistcoat in the opening of the jacket, the
@@ -105,7 +132,7 @@ const PLAIN_VERT = /* glsl */ `
   }`;
 const SLEEVE = [0.3, 0.768]; // in the pose he was made in (arms straight out): metres from his middle
 
-function paint(shared, [L, M, S], { grain = 2.2, sleeve = null, scalp = null, front = false, soft = 0.4, skinned = true } = {}) {
+function paint(shared, [L, M, S], { grain = 2.2, sleeve = null, scalp = null, front = false, eye = false, soft = 0.4, skinned = true } = {}) {
   const col = (c) => ({ value: new THREE.Color(...c) });
   const [L2, M2, S2] = sleeve ?? [L, M, S];
   const [L3, M3, S3] = scalp ?? [L, M, S];
@@ -114,7 +141,7 @@ function paint(shared, [L, M, S], { grain = 2.2, sleeve = null, scalp = null, fr
     side: THREE.DoubleSide,
     uniforms: {
       ...shared, uL: col(L), uM: col(M), uS: col(S), uL2: col(L2), uM2: col(M2), uS2: col(S2),
-      uL3: col(L3), uM3: col(M3), uS3: col(S3), uScalp: { value: scalp ? 1 : 0 }, uFront: { value: front ? 1 : 0 },
+      uL3: col(L3), uM3: col(M3), uS3: col(S3), uScalp: { value: scalp ? 1 : 0 }, uFront: { value: front ? 1 : 0 }, uEye: { value: eye ? 1 : 0 },
       uSleeve: { value: new THREE.Vector2(...(sleeve ? SLEEVE : [0, 0])) }, uGrain: { value: grain }, uSoft: { value: soft },
     },
     vertexShader: skinned ? SKINNED_VERT : PLAIN_VERT,
@@ -124,31 +151,32 @@ function paint(shared, [L, M, S], { grain = 2.2, sleeve = null, scalp = null, fr
 
 // light, half-tone, shade: taken from the character sheet
 export const CLOTHES = {
-  JACKET: [[0.57, 0.59, 0.64], [0.42, 0.44, 0.5], [0.27, 0.29, 0.37]],
-  TROUSERS: [[0.54, 0.56, 0.61], [0.4, 0.42, 0.48], [0.25, 0.27, 0.35]],
+  JACKET: [[0.47, 0.49, 0.56], [0.34, 0.36, 0.43], [0.22, 0.23, 0.31]],
+  TROUSERS: [[0.45, 0.47, 0.54], [0.32, 0.34, 0.41], [0.2, 0.21, 0.29]],
   SKIN: [[1.0, 0.84, 0.68], [0.93, 0.68, 0.53], [0.66, 0.44, 0.42]],
   SHOES: [[0.2, 0.2, 0.25], [0.1, 0.1, 0.14], [0.04, 0.04, 0.07]],
-  HAIR: [[0.62, 0.46, 0.29], [0.44, 0.31, 0.2], [0.27, 0.18, 0.14]],
+  HAIR: [[0.37, 0.26, 0.17], [0.25, 0.17, 0.12], [0.15, 0.1, 0.085]],
+  HAIRLIGHT: [[0.6, 0.43, 0.26], [0.47, 0.33, 0.2], [0.32, 0.22, 0.15]],
   EYES: [[0.95, 0.93, 0.9], [0.84, 0.8, 0.78], [0.6, 0.56, 0.58]],
   LINEN: [[0.99, 0.98, 0.95], [0.88, 0.89, 0.94], [0.64, 0.67, 0.8]],
   BOW: [[0.2, 0.25, 0.42], [0.11, 0.14, 0.28], [0.05, 0.06, 0.16]],
-  MOUSTACHE: [[0.8, 0.5, 0.24], [0.62, 0.35, 0.16], [0.38, 0.2, 0.12]],
-  LAPEL: [[0.66, 0.68, 0.73], [0.5, 0.52, 0.58], [0.33, 0.35, 0.43]],
+  MOUSTACHE: [[0.6, 0.36, 0.18], [0.45, 0.25, 0.12], [0.28, 0.15, 0.09]],
+  LAPEL: [[0.56, 0.58, 0.65], [0.42, 0.44, 0.51], [0.28, 0.3, 0.38]],
   SEAM: [[0.3, 0.31, 0.38], [0.22, 0.23, 0.3], [0.14, 0.15, 0.21]],
   CHEEK: [[1.0, 0.75, 0.66], [0.96, 0.64, 0.56], [0.72, 0.46, 0.44]],
   CONTOUR: [[0.9, 0.64, 0.5], [0.8, 0.52, 0.42], [0.56, 0.36, 0.36]],
-  DARK: [[0.24, 0.17, 0.13], [0.17, 0.12, 0.1], [0.1, 0.07, 0.07]],
+  DARK: [[0.2, 0.14, 0.11], [0.14, 0.1, 0.08], [0.08, 0.06, 0.06]],
 };
 
 export async function createPainter(shared, onProgress) {
-  const { JACKET, TROUSERS, SKIN, SHOES, HAIR, EYES, LINEN, BOW, MOUSTACHE, LAPEL, SEAM, CHEEK, DARK, CONTOUR } = CLOTHES;
+  const { JACKET, TROUSERS, SKIN, SHOES, HAIR, HAIRLIGHT, EYES, LINEN, BOW, MOUSTACHE, LAPEL, SEAM, CHEEK, DARK, CONTOUR } = CLOTHES;
   const man = await loadMan({ base: './figure/', onProgress });
   for (const mesh of man.meshes) {
     const name = mesh.name + ' ' + (mesh.material?.name ?? '');
     if (/eyebrow|eyelash|short01/.test(name)) { mesh.visible = false; continue; }
     mesh.material = /casualsuit/.test(name) ? paint(shared, JACKET, { grain: 2.6, front: true })
       : /shoes/.test(name) ? paint(shared, SHOES, { soft: 0.2 })
-      : /high-poly/.test(name) ? paint(shared, EYES, { soft: 0.6 })
+      : /high-poly/.test(name) ? paint(shared, EYES, { soft: 0.7, eye: true })
       : paint(shared, SKIN, { sleeve: JACKET, scalp: HAIR, soft: 0.5 });
     mesh.layers.enable(1);
     mesh.frustumCulled = false;
@@ -168,9 +196,10 @@ export async function createPainter(shared, onProgress) {
   // cap sinks into his head, so it is joined to him all the way round and nothing shows between ---
   const CAP = { c: [0, 1.762, -0.006], r: [0.092, 0.1, 0.112] };
   const LUMPS = [
-    [0, 1.838, -0.005, 0.052], [0, 1.83, 0.046, 0.042], [-0.042, 1.826, 0.036, 0.042], [0.042, 1.826, 0.036, 0.042],
-    [-0.07, 1.802, 0.0, 0.042], [0.07, 1.802, 0.0, 0.042], [-0.076, 1.782, -0.03, 0.036], [0.076, 1.782, -0.03, 0.036],
-    [0, 1.816, -0.066, 0.052], [-0.042, 1.78, -0.082, 0.044], [0.042, 1.78, -0.082, 0.044], [0, 1.74, -0.086, 0.04],
+    [0, 1.848, 0.0, 0.056], [0, 1.842, 0.05, 0.046], [-0.046, 1.838, 0.036, 0.047], [0.046, 1.838, 0.036, 0.047],
+    [-0.03, 1.834, 0.07, 0.035], [0.03, 1.834, 0.07, 0.035],
+    [-0.08, 1.808, 0.004, 0.049], [0.08, 1.808, 0.004, 0.049], [-0.088, 1.78, -0.022, 0.043], [0.088, 1.78, -0.022, 0.043],
+    [0, 1.822, -0.07, 0.056], [-0.048, 1.784, -0.086, 0.048], [0.048, 1.784, -0.086, 0.048], [0, 1.744, -0.09, 0.044],
   ];
   {
     const cap = new THREE.SphereGeometry(1, 30, 22), cp = cap.attributes.position;
@@ -190,7 +219,7 @@ export async function createPainter(shared, onProgress) {
   }
 
   // --- strokes carried by a bone: each is [x, y, z, dx, dy, dz, nx, ny, nz, across, along, palette] ---
-  const PAL = [HAIR, MOUSTACHE, LINEN, BOW, LAPEL, SEAM, CHEEK, DARK, CONTOUR];
+  const PAL = [HAIR, MOUSTACHE, LINEN, BOW, LAPEL, SEAM, CHEEK, DARK, CONTOUR, HAIRLIGHT];
   const list = (k) => PAL.map((p) => `vec3(${p[k].map((x) => x.toFixed(3))})`).join(', ');
   function carried(bone, strokes, { minPx = [2, 2.6], cells = [0, 3], lift = 0.4, edge = -0.2, jitter = 0.14 } = {}) {
     const holder = hang(bone, new THREE.Object3D());
@@ -219,49 +248,54 @@ export async function createPainter(shared, onProgress) {
     }), 5));
   }
 
-  // curls: short curved strokes lying close on the cap and on the masses, turning this way and that
-  const curls = [];
+  // waves: curved strokes that leave the parting and roll out over the ears and back, turning as they go, the
+  // lighter ones on their crests
+  const curls = [], lights = [];
   const curl = (p, n) => {
     if (p[1] < hairLine(p[2]) + 0.006) return; // none below the hairline
-    const t = [-n[2] + (rand() - 0.5) * 1.4, (rand() - 0.5) * 1.6, n[0] + (rand() - 0.5) * 1.4];
-    curls.push([...p, ...t, ...n, 0.022 + 0.012 * rand(), 0.04 + 0.022 * rand(), 0]);
+    const sx = p[0] < 0 ? -1 : 1, top = p[2] > 0.02 && p[1] > 1.825;
+    const flow = top ? [sx * 0.6, 0.15, -0.75] : [sx * 0.8, -0.5, -0.38];
+    const dn = flow[0] * n[0] + flow[1] * n[1] + flow[2] * n[2];
+    let t = flow.map((v, j) => v - n[j] * dn);
+    const b = [n[1] * t[2] - n[2] * t[1], n[2] * t[0] - n[0] * t[2], n[0] * t[1] - n[1] * t[0]];
+    const a = 0.75 * Math.sin(p[1] * 95 + p[2] * 60 + Math.abs(p[0]) * 45) + (rand() - 0.5) * 0.5, ca = Math.cos(a), sa = Math.sin(a);
+    t = t.map((v, j) => v * ca + b[j] * sa);
+    const light = rand() < 0.14;
+    (light ? lights : curls).push([...p, ...t, ...n, light ? 0.015 + 0.006 * rand() : 0.027 + 0.012 * rand(), light ? 0.045 + 0.02 * rand() : 0.055 + 0.03 * rand(), light ? 9 : 0]);
   };
   const ball = () => { const u = rand() * 2 - 1, a = rand() * Math.PI * 2, q = Math.sqrt(1 - u * u); return [Math.cos(a) * q, u, Math.sin(a) * q]; };
   const inCap = (p) => Math.hypot(...p.map((v, j) => (v - CAP.c[j]) / CAP.r[j])) < 1;
-  for (let k = 0; k < 460; k++) {
+  for (let k = 0; k < 380; k++) {
     const n = ball(), l = Math.hypot(n[0] / CAP.r[0], n[1] / CAP.r[1], n[2] / CAP.r[2]);
     curl(n.map((v, j) => CAP.c[j] + v * CAP.r[j]), [n[0] / CAP.r[0] / l, n[1] / CAP.r[1] / l, n[2] / CAP.r[2] / l]);
   }
   for (const [li, [cx, cy, cz, r]] of LUMPS.entries()) {
-    for (let k = 0; k < 30; k++) {
+    for (let k = 0; k < 34; k++) {
       const n = ball(), p = [cx + n[0] * r, cy + n[1] * r, cz + n[2] * r];
       if (inCap(p) || LUMPS.some(([ox, oy, oz, or], oi) => oi !== li && Math.hypot(p[0] - ox, p[1] - oy, p[2] - oz) < or * 0.94)) continue;
       curl(p, n);
     }
   }
+  carried('Head', lights, { cells: [3, 1], lift: 0.3, edge: -0.1, jitter: 0.12 });
   carried('Head', curls, { cells: [3, 1], lift: 0.1, edge: -0.3, jitter: 0.2 });
 
   // the face: the moustache (broad under the nose, turning down and then a little up at its ends), brows, the
   // line of each upper lid
   const face = [];
   for (const sx of [-1, 1]) {
-    face.push([sx * 0.013, 1.683, 0.126, sx, -0.12, -0.12, 0, 0.1, 1, 0.027, 0.036, 1]);
-    face.push([sx * 0.032, 1.677, 0.117, sx, -0.32, -0.3, sx * 0.3, 0.1, 1, 0.024, 0.036, 1]);
-    face.push([sx * 0.048, 1.668, 0.103, sx, -0.3, -0.55, sx * 0.5, 0, 1, 0.016, 0.026, 1]);
-    face.push([sx * 0.057, 1.668, 0.092, sx, 0.5, -0.5, sx * 0.7, 0, 1, 0.009, 0.016, 1]);
-    face.push([sx * 0.022, 1.759, 0.108, sx, 0.22, -0.1, 0, 0.2, 1, 0.009, 0.026, 7]);
-    face.push([sx * 0.043, 1.76, 0.1, sx, -0.12, -0.35, sx * 0.3, 0.2, 1, 0.008, 0.024, 7]);
-    face.push([sx * 0.031, 1.745, 0.101, sx, 0, -0.1, 0, 0, 1, 0.005, 0.026, 7]);
+    // the moustache: thick under the nose, out past the corners of the mouth, its ends turned up
+    face.push([sx * 0.017, 1.68, 0.129, sx, -0.2, -0.12, 0, 0.1, 1, 0.036, 0.05, 1]);
+    face.push([sx * 0.041, 1.672, 0.118, sx, -0.16, -0.4, sx * 0.3, 0.1, 1, 0.032, 0.05, 1]);
+    face.push([sx * 0.061, 1.671, 0.1, sx, 0.22, -0.65, sx * 0.5, 0, 1, 0.022, 0.036, 1]);
+    face.push([sx * 0.072, 1.682, 0.087, sx * 0.4, 1, -0.4, sx * 0.7, 0, 1, 0.012, 0.022, 1]);
+    // brows, heavy and a little drawn together; the line of each upper lid
+    face.push([sx * 0.02, 1.7565, 0.109, sx, 0.26, -0.1, 0, 0.2, 1, 0.0125, 0.03, 7]);
+    face.push([sx * 0.044, 1.76, 0.1, sx, -0.2, -0.38, sx * 0.3, 0.2, 1, 0.0105, 0.028, 7]);
+    face.push([sx * 0.031, 1.7462, 0.101, sx, 0, -0.08, 0, 0, 1, 0.0058, 0.03, 7]);
   }
+  face.push([0, 1.684, 0.131, 1, 0, 0, 0, 0.1, 1, 0.022, 0.03, 1]);
   face.push([0.011, 1.722, 0.122, 0.12, -1, 0.35, 0.6, 0, 1, 0.007, 0.04, 8], [0, 1.698, 0.126, 1, 0, 0, 0, -0.4, 1, 0.007, 0.026, 8]);
   carried('Head', face, { lift: 0.5, edge: 0.12 });
-  // and its round touches: the dark of each eye, the colour in his cheeks
-  const round = [];
-  for (const sx of [-1, 1]) {
-    round.push([sx * 0.031, 1.737, 0.1, 0, 1, 0, 0, 0, 1, 0.013, 0.012, 7]);
-    round.push([sx * 0.051, 1.704, 0.1, 0, 1, 0, sx * 0.4, 0, 1, 0.024, 0.02, 6]);
-  }
-  carried('Head', round, { cells: [4, 2], lift: 0.4, minPx: [1.6, 1.6], edge: 0.2 });
 
   // the bow at his throat: two wings and a knot, lying on the shirt (collar and shirt front are painted on him)
   carried('neck_01', [-1, 1].map((sx) => [sx * 0.037, 1.55, 0.086, sx, 0.1, 0, 0, 0, 1, 0.042, 0.064, 3]), { lift: 0.5, edge: 0.05 });
@@ -274,7 +308,7 @@ export async function createPainter(shared, onProgress) {
   const UP = new THREE.Vector3(0, 1, 0), OUT = new THREE.Vector3(1, 0, 0), FWD = new THREE.Vector3(0, 0, 1);
   const parts = [];
   const suit = partOf(/casualsuit/), skin = partOf(/generic/), shoes = partOf(/shoes/);
-  if (suit) parts.push({ mesh: suit, count: 760, accept: (p) => !(p.z > 0.04 && p.y > 1.15 && Math.abs(p.x) < opening(p.y) + 0.045), style: (p) => ({ pal: p.y < 0.9 ? 1 : 0, size: p.y > 1.4 ? [0.022, 0.045] : [0.03, 0.095], dir: Math.abs(p.x) > 0.22 && p.y > 1.3 ? OUT : UP }) });
+  if (suit) parts.push({ mesh: suit, count: 760, accept: (p) => !(p.z > 0.04 && p.y > 1.15 && Math.abs(p.x) < opening(p.y) + 0.045), style: (p) => ({ pal: p.y < 0.9 ? 1 : 0, size: p.y > 1.4 ? [0.02, 0.04] : [0.026, 0.07], dir: Math.abs(p.x) > 0.22 && p.y > 1.3 ? OUT : UP }) });
   // of his skin, only the sleeves (which are skin on this model), the cuffs and the hands are stroked: his face
   // and his collar are left smooth
   if (skin) parts.push({
@@ -288,7 +322,7 @@ export async function createPainter(shared, onProgress) {
     },
   });
   if (shoes) parts.push({ mesh: shoes, count: 60, style: () => ({ pal: 3, size: [0.035, 0.075], dir: FWD }) });
-  const bodyDabs = pinDabs(shared, [JACKET, TROUSERS, SKIN, SHOES, LINEN], parts, { edge: 0.34, jitter: 0.13, soft: 0.4, lift: 0.15, cells: [0, 3], minPx: [2, 3.2] });
+  const bodyDabs = pinDabs(shared, [JACKET, TROUSERS, SKIN, SHOES, LINEN], parts, { edge: 0.34, jitter: 0.09, soft: 0.4, lift: 0.15, cells: [0, 3], minPx: [2, 3.2] });
   dabs.add(bodyDabs.mesh);
 
   return { man, dabs, update() { bodyDabs.update(); } };

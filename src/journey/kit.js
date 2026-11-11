@@ -9,7 +9,8 @@
 //   const thing = kit.build();   scene.add(thing.group);   thing.setMatrix(m);   thing.show(0..1);
 //
 // A kit built about the origin can be moved as one piece (setMatrix), and bent as it goes by `warp`, a piece of
-// GLSL that is given every point before it is placed.
+// GLSL that is given every point before it is placed. `tail` is GLSL that has the last word on each stroke (it
+// may change the Dab `d`: fade it with d.alive, say).
 import * as THREE from 'three';
 import { COMMON } from '../oilpaint/common.js';
 import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
@@ -18,7 +19,7 @@ import { rng } from './noise.js';
 const UP = new THREE.Vector3(0, 1, 0);
 export const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
-export function createKit(shared, { seed = 1, warp = '', decl = '', uniforms = {}, additive = false, order = 3, minPx = [3, 6], maxPx = [300, 700], cells = [0, 8], jitter = 0.4, lift = 0.3 } = {}) {
+export function createKit(shared, { seed = 1, warp = '', decl = '', tail = '', uniforms = {}, additive = false, order = 3, minPx = [3, 6], maxPx = [300, 700], cells = [0, 8], jitter = 0.4, lift = 0.3 } = {}) {
   const rand = rng(seed * 7919 + 13);
   const pals = [];
   const S = { position: [], normal: [], data: [], fx: [], index: [] };
@@ -254,6 +255,7 @@ export function createKit(shared, { seed = 1, warp = '', decl = '', uniforms = {
               d.turnabout = 1.0;
               if (aFx.w > 9.5) d.cell = aFx.w - 10.0;
               if (aFx.z > 0.5) { d.lie = 1.0; d.nrm = Nn; d.height = 0.04 + 0.05 * r.z; }
+              ${tail}
             }`,
           uniforms: U, minPx, maxPx, cells, depthWrite: !additive,
         }), order);

@@ -1,7 +1,7 @@
-// The card. The block finishes its picture as oil on canvas, varnished; this is its finish redone for tempera on
-// card, as Čiurlionis worked: matte, the darks chalky and never black, the tooth of the board under thin paint,
-// and the bare card left round the edge where the brush stopped. uWash lets the card come back through the
-// paint, in patches, until nothing else is left: it is how one part of the journey gives way to another.
+// The finish. The block finishes its picture as oil on canvas, varnished; this is its finish redone for tempera, as
+// Čiurlionis worked: matte, the brightest passages rolled off, the darks chalky and never black. No grain is laid
+// over the picture (the strokes are its surface) unless uCanvas asks for it. uWash is how one painting gives way to
+// the next: light opens from the middle of the picture, as if he had stepped into the ring, until nothing else is left.
 import * as THREE from 'three';
 import { COMMON } from '../oilpaint/common.js';
 
@@ -56,15 +56,21 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
         col = min(col, 0.84) + over / (1.0 + over * 5.0);
         col = col * 0.95 + vec3(0.04, 0.036, 0.046);
 
-        vec3 card = vec3(0.905, 0.85, 0.725) * (0.96 + 0.08 * t);
-        // the bare card round the edge
-        vec2 e = min(vUv, 1.0 - vUv) * uSize / k;
-        float rag = texture(tNoise, px / (260.0 * k)).r * 26.0 + texture(tNoise, px / (41.0 * k) + 0.2).g * 10.0;
-        float bare = uBorder > 0.0 ? 1.0 - smoothstep(0.0, 5.0, min(e.x, e.y) - (7.0 + rag) * uBorder) : 0.0;
-        // and the card coming back through the paint
-        float n = texture(tNoise, px / (460.0 * k)).a * 0.6 + texture(tNoise, px / (67.0 * k)).r * 0.4;
-        float gone = smoothstep(n - 0.12, n + 0.12, uWash * 1.3 - 0.15);
-        col = mix(col, card, max(bare * 0.94, gone));
+        if (uBorder > 0.0) {
+          // bare card round the edge, for those who ask for it
+          vec3 card = vec3(0.905, 0.85, 0.725) * (0.96 + 0.08 * t);
+          vec2 e = min(vUv, 1.0 - vUv) * uSize / k;
+          float rag = texture(tNoise, px / (260.0 * k)).r * 26.0 + texture(tNoise, px / (41.0 * k) + 0.2).g * 10.0;
+          col = mix(col, card, (1.0 - smoothstep(0.0, 5.0, min(e.x, e.y) - (7.0 + rag) * uBorder)) * 0.94);
+        }
+        // the light that takes the picture, from its middle outward, its edge uneven as a wash's is
+        if (uWash > 0.0) {
+          vec2 c = (vUv - 0.5) * vec2(uSize.x / uSize.y, 1.0);
+          float n = texture(tNoise, vUv * 0.31 + 0.1).a * 0.65 + texture(tNoise, vUv * 1.3).r * 0.35;
+          float gone = smoothstep(0.0, 0.5, uWash * 2.1 - (length(c) * 0.75 + n * 0.55));
+          vec3 light = mix(vec3(1.0, 0.86, 0.56), vec3(1.0, 0.975, 0.9), smoothstep(0.15, 0.95, gone));
+          col = mix(col, light, gone);
+        }
         outC = vec4(col, 1.0);
       }`,
   });

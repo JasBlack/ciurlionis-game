@@ -16,12 +16,13 @@ import { createShared, WIND } from '../oilpaint/common.js';
 import { createLeafSheet } from './brush.js';
 import { createShade } from '../oilpaint/shade.js';
 import { Animator } from '../figure/animator.js';
-import { Player } from '../figure/player.js';
+import { Player, TUNING } from '../figure/player.js';
 import { Input } from '../figure/input.js';
 import { Follow } from '../figure/camera.js';
 import { noise } from './noise.js';
 import { createFrame } from './finish.js';
 import { createPainter } from './painter.js';
+import { createBody } from './body.js';
 import { journeyUniforms } from './paint.js';
 import { EXTENT, PLACES, way, nearWay } from './way.js';
 import { prepareLand, createLand, heightAt, landAt, zoneAt } from './land.js';
@@ -41,9 +42,9 @@ const low = (q.get('quality') ?? window.patch?.quality ?? 'high') === 'low';
 let shown = true;
 let loaded = false;
 const block = patchBlock({ ...recipe.block, onSet() {}, onTrigger() {}, onVisible(visible) { shown = visible; if (loaded) run(); } });
-const loading = document.getElementById('loading');
+const hud = createHud();
 let told = 0;
-const say = (value, label) => { told = Math.max(told, value); block.progress(told, label); if (loading) loading.textContent = label; };
+const say = (value, label) => { told = Math.max(told, value); block.progress(told, label); hud.progress(told, label); };
 say(0.03, 'Laying the ground');
 const timings = {};
 let mark = performance.now();
@@ -70,25 +71,40 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.3, 16000);
 lap('start');
 
-const figureComing = createPainter(shared, (done) => say(0.05 + 0.5 * done, 'Fetching the painter'));
-const turn = () => new Promise((resolve) => setTimeout(resolve, 0));
-await prepareLand((done) => { say(0.03 + 0.12 * done, 'Laying the ground'); return turn(); });
+const figureComing = createPainter(shared, () => {}); // (he is fetched while the ground is laid)
+// lets the page draw (the bar moves) before the next piece of work; a window in the background is not waited for
+let yielded = performance.now();
+const turn = () => {
+  if (performance.now() - yielded < 80) return Promise.resolve(); // (not too often: each one costs a frame)
+  return new Promise((resolve) => {
+    const done = () => { yielded = performance.now(); resolve(); };
+    requestAnimationFrame(() => setTimeout(done, 0));
+    setTimeout(done, 70);
+  });
+};
+await prepareLand((done) => { say(0.03 + 0.37 * done, 'Laying the ground'); return turn(); });
 const land = createLand(shared);
 lap('land');
-say(0.16, 'Planting the island');
+say(0.42, 'Planting the island');
 await turn();
 const far = createFar(shared);
 const sky = createSky(shared);
+say(0.47, 'Planting the island');
+await turn();
 const water = createWater(shared, { low });
 const ground = createGround(shared, { low });
+say(0.52, 'Planting the island');
+await turn();
 const props = createProps(shared, { low });
+say(0.56, 'Casting the shade');
+await turn();
 for (const c of props.casters) land.shade.add(c);
 lap('world');
 const mood = createMood(shared);
 // the sun sees the whole island: its picture of the shade lays the hills', trees' and towers' shadows down
 const shade = createShade(renderer, shared, land.shade, { sun: SUN, size: [4096, 3072], box: [760, 600], centre: [0, 50, 0], back: 1500, near: 500, far: 2700 });
 lap('shade');
-say(0.3, 'Fetching the painter');
+say(0.6, 'Fetching the painter');
 await turn();
 scene.add(sky.group, far.group, water.group, land.mesh, ground.group, props.group);
 
@@ -114,7 +130,7 @@ scene.add(man.object, figure.dabs);
 const animator = new Animator(man);
 const START = PLACES.start;
 const spawn = new THREE.Vector3(START.x, floorAt(START.x, START.z), START.z);
-const player = new Player({ RAPIER, world: physics, man, animator, spawn, yaw: Math.PI });
+const player = new Player({ RAPIER, world: physics, man, animator, spawn, yaw: Math.PI, tuning: { ...TUNING, maxSlopeDeg: 62, stepHeight: 0.42 } });
 const follow = new Follow(camera);
 follow.yaw = Math.PI;
 follow.pitch = 0.0;
@@ -125,7 +141,7 @@ physics.step();
 lap('figure');
 
 const frame = createFrame(renderer, shared);
-frame.uniforms.uCanvas.value = q.has('canvas') ? +q.get('canvas') : 1;
+frame.uniforms.uCanvas.value = q.has('canvas') ? +q.get('canvas') : 0; // no grain laid over the picture: the strokes are its surface
 frame.uniforms.uBorder.value = q.has('border') ? +q.get('border') : 0; // the picture runs to the edge of the screen
 // Enter: the whole screen, and back
 addEventListener('keydown', (e) => {
@@ -145,6 +161,7 @@ function place(x, z, yaw) {
   player.vel.set(0, 0, 0); player.speed = 0; player.mode = 'move'; player.grounded = true;
   player.yaw = player.lastYaw = yaw;
   follow.yaw = yaw; follow.pivot.set(0, 0, 0);
+  walkTo.on = false;
   animator.lock = null; animator.lockOff = null;
   animator.enter(animator.locoState({ strafe: false }), 0.05);
 }
@@ -167,12 +184,19 @@ function reachOut(dt) {
   }
 }
 
-const hud = createHud();
 const size = new THREE.Vector2();
-const root = new THREE.Vector3();
-let swim = 0; // 0 on his feet .. 1 swimming
+const root = new THREE.Vector3();  // where he is, for the eye and the story
+const pose = new THREE.Vector3();  // where his feet are drawn: in the water his body turns about his chest
+let swim = 0;    // 0 on his feet .. 1 swimming
+let stroke = 0;  // 0 treading water .. 1 swimming forward
+let strokeU = 0; // the moment of the stroke, 0..1
+let riding = 0;
+const body = createBody(man, animator);
+const hold = { weight: 0, want: 0, target: new THREE.Vector3() }; // his left hand, given to the child
 const ctx = {
-  THREE, shared, camera, follow, player, animator, man, figure, input, mood, props, hud, reach, place, heightAt, landAt, zoneAt, physics,
+  THREE, shared, camera, follow, player, animator, man, figure, input, mood, props, hud, reach, hold, body, place, heightAt, landAt, zoneAt, physics,
+  flood: false,     // the sea is over the land (the end): he is not set back on the way for being under it
+  get swim() { return swim; },
   scripted: null,   // { root: Vector3, yaw, hide } while the story moves him itself
   eye: null,        // { position, target, blend } while the story holds the camera
   zone: null,       // a painting's hour forced on the sky, or null for where he stands
@@ -181,12 +205,67 @@ const ctx = {
 const story = createStory(ctx);
 ctx.story = story;
 
+// --- walking where he is sent: a click on the ground (or the sea) is a place to go. He makes for it as if the
+// keys were held toward it, running when it is far and walking the last of the way, until he is there, the keys are
+// touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
+const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
+const caster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitN = new THREE.Vector3(), hitP = new THREE.Vector3();
+/** The ground (or the sea's face) under the screen point (cx, cy), or null if the sky is there. */
+function groundUnder(cx, cy, max = 300) {
+  ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  caster.setFromCamera(ndc, camera);
+  const o = caster.ray.origin, d = caster.ray.direction, sea = shared.uSea.value;
+  const g = (t) => Math.max(heightAt(o.x + d.x * t, o.z + d.z * t), sea);
+  let a = 0, b = 0.25;
+  if (o.y <= g(0)) return null;
+  while (b < max) {
+    if (o.y + d.y * b <= g(b)) {
+      for (let i = 0; i < 12; i++) { const m = (a + b) / 2; if (o.y + d.y * m <= g(m)) b = m; else a = m; }
+      const x = o.x + d.x * b, z = o.z + d.z * b, h = heightAt(x, z);
+      if (h < sea) hitN.set(0, 1, 0);
+      else hitN.set(heightAt(x - 0.5, z) - heightAt(x + 0.5, z), 1, heightAt(x, z - 0.5) - heightAt(x, z + 0.5)).normalize();
+      return { point: hitP.set(x, Math.max(h, sea), z), normal: hitN };
+    }
+    a = b;
+    b += Math.max(0.2, b * 0.015);
+  }
+  return null;
+}
+function sendTo(cx, cy) {
+  const hit = groundUnder(cx, cy);
+  if (!hit) return;
+  Object.assign(walkTo, { on: true, x: hit.point.x, z: hit.point.z, best: Infinity, stall: 0 });
+  props.markAt(hit.point, hit.normal, camera.position);
+}
+/** While he is sent somewhere and nothing else moves him, the keys are held for him toward it. */
+function steer(inp, dt) {
+  if (!walkTo.on) return;
+  if (Math.hypot(inp.move.x, inp.move.y) > 0.05 || ctx.scripted || story.frozen) { walkTo.on = false; return; }
+  const dx = walkTo.x - player.feet.x, dz = walkTo.z - player.feet.z, d = Math.hypot(dx, dz);
+  if (d < 0.45) { walkTo.on = false; return; }
+  if (d < walkTo.best - 0.05) { walkTo.best = d; walkTo.stall = 0; } else if ((walkTo.stall += dt) > 1.3) { walkTo.on = false; return; }
+  // (as a stick held that way: the player reads it against the eye's heading)
+  const yaw = follow.yaw, ux = dx / d, uz = dz / d, mag = THREE.MathUtils.clamp(d / 5, 0.5, 1);
+  inp.move.y = (ux * Math.sin(yaw) + uz * Math.cos(yaw)) * mag;
+  inp.move.x = (-ux * Math.cos(yaw) + uz * Math.sin(yaw)) * mag;
+  inp.device = 'pad';
+}
+
 function tick(dt) {
   dt = Math.min(dt, 1 / 20);
   time += dt;
   const inp = input.read(dt);
+  // a click is a place to walk to once the journey has begun and while he is his own master (not on the salamander)
+  input.clickable = !story.waiting && !story.frozen && !ctx.scripted;
+  if (input.clickable) for (const c of inp.clicks ?? []) sendTo(c.x, c.y);
+  steer(inp, dt);
   if (story.frozen) { inp.move.x = inp.move.y = 0; inp.jump = false; }
-  if (swim > 0.5) { inp.sprint = false; inp.jump = false; }
+  if (swim > 0.5) {
+    // swimming is slower than running, and there is no sprinting or jumping in it
+    inp.sprint = false; inp.jump = false;
+    const m = Math.hypot(inp.move.x, inp.move.y);
+    if (m > 0.05) { inp.move.x *= 0.74 / m; inp.move.y *= 0.74 / m; inp.device = 'pad'; }
+  }
   if (ctx.scripted) {
     root.copy(ctx.scripted.root);
     player.yaw = ctx.scripted.yaw;
@@ -194,21 +273,35 @@ function tick(dt) {
   } else {
     player.update(dt, inp, follow.yaw);
     // into deep water or off the map: he is set back on the way, where he was nearest it
-    if (player.feet.y < shared.uSea.value - 2.1 || Math.max(Math.abs(player.feet.x), Math.abs(player.feet.z)) > EXTENT - 8) {
+    if ((!ctx.flood && player.feet.y < shared.uSea.value - 2.1) || Math.max(Math.abs(player.feet.x), Math.abs(player.feet.z)) > EXTENT - 8) {
       const n = nearWay(player.feet.x, player.feet.z);
       let best = way[0];
       for (const p of way) if (Math.abs(p.s - n.s) < Math.abs(best.s - n.s)) best = p;
       place(best.x, best.z, player.yaw);
     }
     root.copy(player.visualRoot(dt));
-    // in deep water he lies forward on it and swims: his body comes up to the surface and rides the swell
     const depth = shared.uSea.value - root.y;
-    swim += ((depth > 1.0 ? 1 : 0) - swim) * (1 - Math.exp(-4 * dt));
-    if (swim > 0.01) root.y += (shared.uSea.value - 0.52 + 0.05 * Math.sin(time * 2.2) - root.y) * swim;
+    swim += ((depth > 1.05 ? 1 : 0) - swim) * (1 - Math.exp(-3.5 * dt));
   }
   if (ctx.scripted) swim = 0;
-  man.object.position.copy(root);
-  man.object.rotation.set((ctx.scripted?.pitch ?? 0) + 1.12 * swim, player.yaw, 0, 'YXZ');
+  // In deep water he swims. Still, he treads it upright with his arms out on the surface (as the film opens);
+  // moving, he goes onto his front. Either way his chest rides at the surface and his body turns about it.
+  stroke += (THREE.MathUtils.clamp((player.speed - 0.25) / 0.6, 0, 1) - stroke) * (1 - Math.exp(-2.4 * dt));
+  strokeU = (strokeU + dt * (0.36 + 0.2 * stroke)) % 1;
+  const pitch = swim * (0.12 + 1.0 * stroke);
+  const roll = swim * stroke * 0.24 * Math.sin((strokeU + 0.05) * 6.283); // he rolls toward the arm that reaches
+  pose.copy(root);
+  if (swim > 0.01) {
+    const sea = shared.uSea.value, h = 1.32, sp = Math.sin(pitch), cp = Math.cos(pitch);
+    // (he lifts a little as the kick drives him)
+    const chest = sea - 0.1 + 0.035 * Math.sin(time * 2.2) + 0.03 * stroke * Math.sin(strokeU * 12.566);
+    pose.x += (root.x - Math.sin(player.yaw) * h * sp - pose.x) * swim;
+    pose.z += (root.z - Math.cos(player.yaw) * h * sp - pose.z) * swim;
+    pose.y += (chest - h * cp - pose.y) * swim;
+    root.y += (sea - 1.0 - root.y) * swim;
+  }
+  man.object.position.copy(pose);
+  man.object.rotation.set((ctx.scripted?.pitch ?? 0) + pitch, player.yaw, (ctx.scripted?.roll ?? 0) + roll, 'YXZ');
   man.object.updateMatrixWorld(true);
   const local = player.vel.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -player.yaw);
   const moving = !ctx.scripted;
@@ -221,9 +314,15 @@ function tick(dt) {
   if (moving && player.mode === 'move' && !player.strafe) animator.leanInto(dt, player.turnRate, player.speed, player.accelF);
   else animator.leanInto(dt, 0, 0, 0);
   const onGround = moving && player.grounded && player.mode !== 'jump' && player.mode !== 'air';
-  animator.placeFeet(dt, (x, z, from) => player.ground(x, z, from, 1.4), root.y, onGround ? 1 - swim : 0);
+  animator.placeFeet(dt, (x, z, from) => player.ground(x, z, from, 1.4), pose.y, onGround ? 1 - swim : 0);
   man.object.updateMatrixWorld(true);
+  body.stand(dt, onGround && swim < 0.1 && player.speed < 0.15);
+  body.swim(swim, stroke, strokeU, time, pitch);
+  riding += ((ctx.scripted?.ride ? 1 : 0) - riding) * (1 - Math.exp(-6 * dt));
+  body.ride(riding, time);
   reachOut(dt);
+  hold.weight += (hold.want - hold.weight) * (1 - Math.exp(-6 * dt));
+  body.hold(hold.weight, hold.target);
   figure.update();
 
   follow.update(dt, root, inp.look, inp.zoom, (o, d, max) => {
@@ -270,6 +369,9 @@ window.lab = {
   view(eye, target) { follow.free = eye ? { position: new THREE.Vector3(...eye), target: new THREE.Vector3(...target) } : null; },
   wait(seconds) { time += seconds; },
   go(name) { const s = SPOTS[name]; if (s) this.teleport(...s); },
+  /** As a click at screen point (x, y): he is sent to the ground there. */
+  click(x, y) { sendTo(x, y); },
+  walkTo,
 };
 
 addEventListener('resize', () => {
@@ -278,7 +380,7 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   frame.resize();
 });
-say(0.68, 'Mixing tempera');
+say(0.66, 'Mixing tempera');
 function gpuDone() {
   const gl = renderer.getContext();
   const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -294,16 +396,19 @@ function gpuDone() {
 }
 if (!capture && !q.has('debug')) {
   renderer.debug.checkShaderErrors = false;
+  // (the longest wait, and nothing reports how far along it is: the bar creeps so that it is seen to be alive)
+  const creep = setInterval(() => say(Math.min(0.9, told + 0.004), 'Mixing tempera'), 120);
   await renderer.compileAsync(scene, camera);
+  clearInterval(creep);
   lap('shaders');
-  say(0.86, 'Mixing tempera');
+  say(0.9, 'Mixing tempera');
 }
 story.begin(q.get('at'));
 for (let i = 0; i < (capture ? 1 : 5); i++) {
   tick(1 / 60);
   if (capture) break;
   await gpuDone();
-  say(0.88 + 0.025 * i, 'First strokes');
+  say(0.9 + 0.02 * (i + 1), 'First strokes');
   await turn();
 }
 lap('first frame');
@@ -353,12 +458,12 @@ function run() {
 if (!capture) {
   const hint = document.getElementById('hint');
   addEventListener('keydown', (e) => { if (e.code === 'KeyH') hint.classList.toggle('off'); });
-  setTimeout(() => hint.classList.add('faded'), 14000);
 }
 loaded = true;
 run();
-loading?.remove();
+say(1, 'Ready');
 if (q.has('clean') || capture) document.getElementById('hint')?.remove();
+hud.ready(story.waiting);
 block.ready();
 window.lab.ready = true;
 window.__block = { ready: true, block, timings, set() {} };
