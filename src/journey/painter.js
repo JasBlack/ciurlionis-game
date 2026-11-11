@@ -17,7 +17,7 @@ import { rng } from './noise.js';
 // ears and down a little in front of them, and across the forehead, which is high on his right, where his hair is
 // parted, and lower on his left, where the wave comes over (as in his portrait). The same line is used three times:
 // the scalp above it is painted as hair, the cap of hair sinks into the head below it, and no curl is laid under it.
-const NAPE = 1.7, EAR = 1.762, BROW = 1.822, PART = -0.034;
+const NAPE = 1.655, EAR = 1.762, BROW = 1.822, PART = -0.034;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const hairLine = (x, z) => {
   let h = NAPE + (EAR - NAPE) * sstep(-0.06, -0.005, z);
@@ -211,6 +211,8 @@ export async function createPainter(shared, onProgress) {
     [-0.078, 1.812, 0.0, 0.046], [0.081, 1.806, 0.008, 0.05], [-0.086, 1.772, -0.01, 0.04], [0.088, 1.772, -0.008, 0.042],
     [-0.079, 1.752, 0.02, 0.021], [0.08, 1.752, 0.021, 0.022],
     [0, 1.822, -0.07, 0.056], [-0.048, 1.784, -0.086, 0.048], [0.048, 1.784, -0.086, 0.048], [0, 1.744, -0.09, 0.044],
+    // (and at the back it comes down over the nape, longer than it was)
+    [0, 1.708, -0.084, 0.038], [-0.038, 1.716, -0.079, 0.034], [0.038, 1.716, -0.079, 0.034], [0, 1.68, -0.074, 0.03],
   ];
   {
     const cap = new THREE.SphereGeometry(1, 30, 22), cp = cap.attributes.position;

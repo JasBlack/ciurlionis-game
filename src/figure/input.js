@@ -2,7 +2,7 @@
 //   move: {x, y} (x right, y forward, length 0..1), walk, sprint, strafe (held),
 //   jump (pressed this frame), look: {x, y} (radians this frame), zoom (wheel steps this frame),
 //   clicks: [{x, y}] (quick clicks or taps on the picture this frame, in screen pixels),
-//   cursor: {x, y, inside} (where the mouse is over the picture, -1..1 each way, y down)
+//   cursor: {x, y, inside} (where the mouse is over the picture, -1..1 each way, y down), orbit (middle button held)
 const damp = (a, b, rate, dt) => b + (a - b) * Math.exp(-rate * dt);
 export class Input {
   constructor(el, { pads = true } = {}) {
@@ -10,7 +10,7 @@ export class Input {
     this.pads = pads; // off in headless checks: this PC's real gamepad shows up in headless browsers too
     this.keys = new Set();
     this.pressed = new Set();
-    this.mouse = { x: 0, y: 0, wheel: 0, right: false, drag: false };
+    this.mouse = { x: 0, y: 0, wheel: 0, right: false, middle: false, drag: false };
     this.walkToggle = false;
     this.pad = { a: false, l3: false, sprint: false };
     this.sensitivity = 0.0022;
@@ -38,11 +38,13 @@ export class Input {
     const up = (e) => this.keys.delete(e.code);
     addEventListener('keydown', down);
     addEventListener('keyup', up);
-    addEventListener('blur', () => { this.keys.clear(); this.press = null; this.cursor.inside = false; el.classList.remove('dragging'); });
-    el.addEventListener('mousedown', (e) => { if (e.button === 2) this.mouse.right = true; });
-    addEventListener('mouseup', (e) => { if (e.button === 2) this.mouse.right = false; });
+    addEventListener('blur', () => { this.keys.clear(); this.press = null; this.cursor.inside = false; this.mouse.middle = this.mouse.right = false; el.classList.remove('dragging'); });
+    // (the middle button, held, takes the eye round him: all the way round, and up and over)
+    el.addEventListener('mousedown', (e) => { if (e.button === 2) this.mouse.right = true; if (e.button === 1) { this.mouse.middle = true; e.preventDefault(); } });
+    addEventListener('mouseup', (e) => { if (e.button === 2) this.mouse.right = false; if (e.button === 1) this.mouse.middle = false; });
+    el.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    addEventListener('mousemove', (e) => { if (this.mouse.right) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; } });
+    addEventListener('mousemove', (e) => { if (this.mouse.right || this.mouse.middle) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; } });
     el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this.cursor.inside = false; });
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
@@ -87,12 +89,13 @@ export class Input {
       device: 'keyboard',
       clicks: this.clicks.splice(0),
       cursor: { ...this.cursor },
+      orbit: this.mouse.middle,
     };
     this.mouse.x = this.mouse.y = this.mouse.wheel = 0;
     this.pressed.clear();
     // the eye follows the free mouse: a lean toward its side (given back as it comes back to the middle), and a
     // steady turn while it is held at the very edge. (Not while a press is dragged: that looks about by itself.)
-    const c = this.cursor, steer = this.follows && c.inside && !(this.press?.drag) && !this.mouse.right;
+    const c = this.cursor, steer = this.follows && c.inside && !(this.press?.drag) && !this.mouse.right && !this.mouse.middle;
     const want = steer ? Math.sign(c.x) * Math.pow(Math.min(1, Math.abs(c.x)), 1.4) * this.lean : 0;
     const leaned = damp(this.leaned, want, 5, dt);
     s.look.x += leaned - this.leaned;

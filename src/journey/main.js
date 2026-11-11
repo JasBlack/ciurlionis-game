@@ -218,6 +218,34 @@ ctx.story = story;
 // touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
 const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
 let cursorCheck = 0;
+// --- the cursor: a small orb of gold with sparks turning about it, kept over the picture where the mouse is. It is
+// faint where a click would find no ground, and warms toward rose when it points the way to the next thing to find ---
+const orb = document.getElementById('cursor');
+const v3a = new THREE.Vector3(), v3b = new THREE.Vector3();
+if (orb) {
+  const el = renderer.domElement;
+  el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; orb.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`; orb.classList.add('on'); el.classList.add('orbed'); });
+  el.addEventListener('pointerleave', () => orb.classList.remove('on'));
+  el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) { orb.classList.remove('tap'); void orb.offsetWidth; orb.classList.add('tap'); } });
+}
+function updateCursor(inp) {
+  const c = inp.cursor;
+  if (!orb || !c?.inside || (cursorCheck = (cursorCheck + 1) % 6) !== 0) return;
+  const sx = (c.x + 1) / 2 * innerWidth, sy = (c.y + 1) / 2 * innerHeight, goal = story.goal;
+  let onWay = false, ground = null;
+  if (ctx.scripted) {
+    // (flying: does the mouse point at it, near enough?)
+    if (goal) { ndc.set(c.x, -c.y); caster.setFromCamera(ndc, camera); onWay = caster.ray.direction.dot(v3a.copy(goal).sub(camera.position).normalize()) > Math.cos(0.17); }
+  } else {
+    ground = groundUnder(sx, sy);
+    if (ground && goal) {
+      v3a.set(ground.point.x - root.x, 0, ground.point.z - root.z); v3b.set(goal.x - root.x, 0, goal.z - root.z);
+      onWay = v3a.length() > 0.8 && v3b.length() > 0.5 && v3a.normalize().dot(v3b.normalize()) > Math.cos(0.5);
+    }
+  }
+  orb.classList.toggle('nowalk', !ctx.scripted && (!input.clickable || !ground));
+  orb.classList.toggle('way', onWay && !story.waiting);
+}
 const caster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitN = new THREE.Vector3(), hitP = new THREE.Vector3();
 /** The ground (or the sea's face) under the screen point (cx, cy), or null if the sky is there. */
 function groundUnder(cx, cy, max = 300) {
@@ -269,13 +297,17 @@ function tick(dt) {
   if (input.clickable) for (const c of inp.clicks ?? []) sendTo(c.x, c.y);
   // the eye follows the free mouse once the journey has begun (not on the title, nor while the story holds the eye)
   input.follows = !story.waiting && !ctx.eye;
-  // the cursor is faint where a click would find no ground (the sky)
-  const cur = inp.cursor;
-  if (cur?.inside && (cursorCheck = (cursorCheck + 1) % 6) === 0) renderer.domElement.classList.toggle('nowalk', !input.clickable || !groundUnder((cur.x + 1) / 2 * innerWidth, (cur.y + 1) / 2 * innerHeight));
   // the eye does not tilt up and down with the mouse: it keeps the painting's horizon (the wheel steps it back or in).
-  // A press dragged up or down is kept for the flight instead, which climbs or stoops by it when there is no mouse
-  ctx.climb = THREE.MathUtils.clamp((ctx.climb ?? 0) * Math.exp(-0.5 * dt) + inp.look.y * 2.5, -1, 1);
+  // A press dragged up or down is kept for the flight instead, which climbs or stoops by it when there is no mouse.
+  // Only with the middle button held does the eye go round him freely, up and over as well; let go, it settles back
+  if (inp.orbit) {
+    follow.pitch = THREE.MathUtils.clamp(follow.pitch + inp.look.y, -0.35, 1.1);
+  } else {
+    ctx.climb = THREE.MathUtils.clamp((ctx.climb ?? 0) * Math.exp(-0.5 * dt) + inp.look.y * 2.5, -1, 1);
+    follow.pitch += ((ctx.scripted ? 0.3 : 0.04) - follow.pitch) * (1 - Math.exp(-2.2 * dt));
+  }
   inp.look.y = 0;
+  updateCursor(inp);
   steer(inp, dt);
   if (story.frozen) { inp.move.x = inp.move.y = 0; inp.jump = false; }
   if (swim > 0.5) {
@@ -289,6 +321,7 @@ function tick(dt) {
     player.yaw = ctx.scripted.yaw;
     player.feet.copy(root); player.speed = 0;
   } else {
+    player.swimming = swim > 0.5;
     player.update(dt, inp, follow.yaw);
     // into deep water or off the map: he is set back on the way, where he was nearest it
     if ((!ctx.flood && player.feet.y < shared.uSea.value - 2.1) || Math.max(Math.abs(player.feet.x), Math.abs(player.feet.z)) > EXTENT - 8) {
@@ -308,13 +341,13 @@ function tick(dt) {
   strokeU = (strokeU + dt * (0.36 + 0.2 * stroke)) % 1;
   // (in the breaststroke he rises a little as his arms pull in under him, and lies flat again for the glide)
   const ph = (strokeU - 0.4) / 0.35, rise = stroke * (ph > 0 && ph < 1 ? Math.sin(ph * Math.PI) : 0);
-  const pitch = swim * (0.12 + stroke * 1.0 - 0.24 * rise);
+  const pitch = swim * (0.12 + stroke * 1.22 - 0.3 * rise);
   const roll = 0;
   pose.copy(root);
   if (swim > 0.01) {
     const sea = shared.uSea.value, h = 1.32, sp = Math.sin(pitch), cp = Math.cos(pitch);
     // (he lifts a little as the kick drives him)
-    const chest = sea - 0.1 + 0.035 * Math.sin(time * 2.2) + 0.09 * rise;
+    const chest = sea - 0.03 + 0.035 * Math.sin(time * 2.2) + 0.1 * rise;
     pose.x += (root.x - Math.sin(player.yaw) * h * sp - pose.x) * swim;
     pose.z += (root.z - Math.cos(player.yaw) * h * sp - pose.z) * swim;
     pose.y += (chest - h * cp - pose.y) * swim;
@@ -325,19 +358,22 @@ function tick(dt) {
   man.object.updateMatrixWorld(true);
   const local = player.vel.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -player.yaw);
   const moving = !ctx.scripted;
-  animator.update(dt, { speed: !moving ? 0 : player.mode === 'move' ? player.speed : Math.hypot(local.x, local.z), moveAngle: player.moveAngle, grounded: !moving || player.grounded });
-  animator.relaxHands(player.speed);
-  animator.uprightTrunk(dt, player.speed, moving && player.grounded && player.mode !== 'jump' && player.mode !== 'air' ? 1 : 0.3);
+  // (in the water the clips under the stroke are his standing ones: a run left playing under it had his hips, back
+  // and feet still running)
+  const inWater = swim > 0.5;
+  animator.update(dt, { speed: !moving || inWater ? 0 : player.mode === 'move' ? player.speed : Math.hypot(local.x, local.z), moveAngle: player.moveAngle, grounded: !moving || player.grounded || inWater });
+  animator.relaxHands(inWater ? 0 : player.speed);
+  animator.uprightTrunk(dt, inWater ? 0 : player.speed, (moving && player.grounded && player.mode !== 'jump' && player.mode !== 'air' ? 1 : 0.3) * (1 - swim));
   const lookW = moving && (player.mode === 'move' || player.mode === 'idleExtra') ? THREE.MathUtils.clamp(1 - (player.speed - 1.5) / 2, 0, 1) : 0;
   animator.lookToward(dt, camera.getWorldDirection(new THREE.Vector3()), lookW);
   animator.armClearance(dt);
-  if (moving && player.mode === 'move' && !player.strafe) animator.leanInto(dt, player.turnRate, player.speed, player.accelF);
+  if (moving && player.mode === 'move' && !player.strafe && !inWater) animator.leanInto(dt, player.turnRate, player.speed, player.accelF);
   else animator.leanInto(dt, 0, 0, 0);
   const onGround = moving && player.grounded && player.mode !== 'jump' && player.mode !== 'air';
   animator.placeFeet(dt, (x, z, from) => player.ground(x, z, from, 1.4), pose.y, onGround ? 1 - swim : 0);
   man.object.updateMatrixWorld(true);
   body.stand(dt, onGround && swim < 0.1 && player.speed < 0.15);
-  body.swim(swim, stroke, strokeU, time, pitch);
+  body.swim(swim, stroke, strokeU, time, pitch, rise);
   riding += ((ctx.scripted?.ride ? 1 : 0) - riding) * (1 - Math.exp(-6 * dt));
   body.ride(riding, time);
   reachOut(dt);

@@ -35,7 +35,16 @@ export function createHud() {
     caption(main, sub = '', hold = 7) {
       if (!cap) return;
       cap.querySelector('b').textContent = main;
-      cap.querySelector('i').textContent = sub;
+      // (an instruction that begins with the painting's name, "The Sea — find …", is kept in two parts, so that on a
+      // phone the name has a line of its own)
+      const i = cap.querySelector('i'), cut = sub.indexOf(' — ');
+      i.textContent = '';
+      if (cut > 0 && cut < 40) {
+        const lead = document.createElement('span'), sep = document.createElement('span');
+        lead.className = 'lead'; lead.textContent = sub.slice(0, cut);
+        sep.className = 'sep'; sep.textContent = ' — ';
+        i.append(lead, sep, sub.slice(cut + 3));
+      } else i.textContent = sub;
       cap.classList.add('on');
       clearTimeout(timer);
       timer = setTimeout(() => cap.classList.remove('on'), hold * 1000);

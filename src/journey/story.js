@@ -83,7 +83,7 @@ export function createStory(ctx) {
 
   let level = -1, phase = 'boot', clock = 0, washGoal = 0, washRate = 1, after = null, started = false, frozen = false;
   let portal = null; // { centre: Vector3, reach }
-  let got = 0, open = 0, idle = 0, hint = 0, total = 3, ahead = 0; // ahead: on a course, the first still to come
+  let got = 0, open = 0, idle = 0, hint = 0, total = 3, ahead = 0, goalNow = null; // ahead: on a course, the first still to come
   const pearls = T.pearls.map(() => ({ pos: V(), k: 1, got: false, missed: false, t: 0, seen: 0, live: false }));
   const lastGood = V(), tmp = V(), tmp2 = V(), up = V();
   const fl = { pos: V(), yaw: Math.PI / 2, pitch: 0, speed: 0, air: false, t: 0, turn: 0, climb: 0, bank: 0 };
@@ -295,6 +295,8 @@ export function createStory(ctx) {
     /** True while the title is up and a click is waited for. */
     get waiting() { return !started; },
     get level() { return level; },
+    /** Where the next thing to find is (a pearl, the ring, the summit), or null: for the cursor's colour. */
+    get goal() { return goalNow; },
     /** For looking at it from a console: where things stand. */
     get state() { return { level, phase, got, total, ahead, open, hint, idle, pearls: pearls.slice(0, total).map((q) => [+q.pos.x.toFixed(1), +q.pos.y.toFixed(1), +q.pos.z.toFixed(1), q.got, q.missed]), portal: portal?.centre.toArray().map((v) => +v.toFixed(1)), fl, finale, angel, kid }; },
     enter,
@@ -462,7 +464,7 @@ export function createStory(ctx) {
       const near = gather(dt, from, level === 4);
       if (done() && portal && open < 1) { open = Math.min(1, open + dt / 1.8); T.portal.show(open); }
       if (playing && !finale.on) idle += dt;
-      const goal = L.course && ahead < total ? pearls[ahead].pos : near ? near.pos : portal ? portal.centre : level === 5 && !angel.given ? tmp.set(S.x + STAIR.dx * 6, S.y + 2, S.z + STAIR.dz * 6) : null;
+      const goal = goalNow = L.course && ahead < total ? pearls[ahead].pos : near ? near.pos : portal ? portal.centre : level === 5 && !angel.given ? tmp.set(S.x + STAIR.dx * 6, S.y + 2, S.z + STAIR.dz * 6) : null;
       hint = damp(hint, playing && goal && idle > (level === 4 ? 14 : HINT_AFTER) ? 1 : 0, 1.2, dt);
       T.motes.show(hint > 0.02 ? hint : 0);
       if (hint > 0.02 && goal) {
