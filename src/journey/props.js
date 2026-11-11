@@ -131,62 +131,66 @@ export function createProps(shared, opts = {}) {
     things.motes = t;
   }
 
-  // --- where a click sends him: a ring of light laid on the ground, that shrinks to the spot and is gone. It is
-  // drawn over everything (it is a sign for the eye, not a thing in the painting), and larger the farther off it is ---
+  // --- where a click sends him: sparks of gold and rose wind in to the spot along a spiral on the ground, as they
+  // wind in to the ring of light, and a little glow is left where they meet. The sparks are painted (they show on
+  // pale ground as light alone would not), face the eye, and are drawn over everything: it is a sign for the eye, not a
+  // thing in the painting. uT runs 0..1 over the second it lasts ---
   {
-    const kit = createKit(shared, { seed: 90, additive: true, order: 7, minPx: [2, 3], maxPx: [500, 1200], cells: [4, 2], jitter: 0.06 });
-    const flat = (c) => kit.pal(c, c, c);
-    const gold = flat([0.56, 0.42, 0.17]), rose = flat([0.36, 0.18, 0.15]), pale = flat([0.3, 0.25, 0.14]);
-    const UP = V(0, 1, 0);
-    kit.fx(0, 2);
-    for (let i = 0; i < 44; i++) { const a = (i / 44) * 6.283; kit.dab(V(Math.cos(a), 0, Math.sin(a)), V(-Math.sin(a), 0, Math.cos(a)), UP, gold, 0.07, 0.24); }
-    for (let i = 0; i < 30; i++) { const a = ((i + 0.5) / 30) * 6.283; kit.dab(V(Math.cos(a) * 0.74, 0, Math.sin(a) * 0.74), V(-Math.sin(a), 0, Math.cos(a)), UP, rose, 0.045, 0.2); }
-    for (let i = 0; i < 3; i++) kit.dab(V(0, 0, 0), V(Math.cos(i), 0, Math.sin(i)), UP, pale, 0.16, 0.2);
+    const N = 28;
+    const kit = createKit(shared, {
+      seed: 90, order: 8, minPx: [2.2, 5], maxPx: [400, 900], cells: [4, 2], jitter: 0.06, lift: 0,
+      uniforms: { uT: { value: 0 }, uFade: { value: 0 } }, decl: 'uniform float uT; uniform float uFade;',
+      warp: /* glsl */ `
+        void warp(inout vec3 p, inout vec3 n, inout vec3 d, vec4 fx) {
+          if (fx.w < 0.5 || fx.w > 2.5) return;
+          // fx.w: 1 + which spark (0..1)
+          float i = (fx.w - 1.0) * ${N}.0, e = clamp(uT * 1.15 + mod(i, 5.0) * 0.03, 0.0, 1.0);
+          float v = 1.0 - pow(1.0 - e, 3.0), a = (fx.w - 1.0) * 6.2832 + v * 4.0, r = 1.3 * (1.0 - v) + 0.03;
+          p = vec3(cos(a) * r, 0.06, sin(a) * r);
+          d = vec3(-sin(a), 0.0, cos(a));
+        }`,
+      tail: /* glsl */ `d.alive *= uFade; if (aFx.w > 2.5) d.alive *= 0.8;`,
+    });
+    const gold = kit.pal([0.98, 0.8, 0.42], [0.98, 0.8, 0.42], [0.98, 0.8, 0.42]), rose = kit.pal([0.96, 0.66, 0.6], [0.96, 0.66, 0.6], [0.96, 0.66, 0.6]);
+    const up = V(0, 1, 0);
+    for (let i = 0; i < N; i++) { kit.fx(0, 2, 0, 1 + i / N); kit.dab(V(0, 0, 0), V(1, 0, 0), up, i % 3 ? gold : rose, 0.08, 0.34); }
     const t = kit.build();
     t.strokes.material.depthTest = false;
     t.show(0);
     group.add(t.group);
     things.mark = t;
-    // and inside the light, a thin ring of gold paint, which shows on pale ground where light alone would not
-    const ink = createKit(shared, { seed: 91, order: 8, minPx: [2.6, 5], maxPx: [300, 800], cells: [4, 2], jitter: 0.08, lift: 0 });
-    const g = ink.pal([0.98, 0.6, 0.16], [0.98, 0.6, 0.16], [0.98, 0.6, 0.16]), w = ink.pal([1, 0.9, 0.62], [1, 0.9, 0.62], [1, 0.9, 0.62]);
-    ink.fx(0, 2);
-    for (let i = 0; i < 36; i++) { const a = (i / 36) * 6.283; ink.dab(V(Math.cos(a) * 0.96, 0, Math.sin(a) * 0.96), V(-Math.sin(a), 0, Math.cos(a)), UP, i % 5 ? g : w, 0.085, 0.27); }
-    const r = ink.build();
-    r.strokes.material.depthTest = false; r.strokes.material.depthWrite = false;
-    r.show(0);
-    group.add(r.group);
-    things.markRing = r;
+    // the glow where they meet
+    const light = createKit(shared, { seed: 91, additive: true, order: 9, minPx: [3, 3], maxPx: [500, 500], cells: [4, 2], jitter: 0.05, uniforms: { uFade: { value: 0 } }, decl: 'uniform float uFade;', tail: 'd.alive *= uFade;' });
+    const g = light.pal([0.5, 0.4, 0.2], [0.5, 0.4, 0.2], [0.5, 0.4, 0.2]);
+    light.fx(0, 2);
+    light.dab(V(0, 0.08, 0), V(1, 0, 0), up, g, 0.42, 0.42);
+    const l = light.build();
+    l.strokes.material.depthTest = false;
+    l.show(0);
+    group.add(l.group);
+    things.markGlow = l;
   }
-  // (the ring stands tilted up toward the eye from the ground it marks, its lower edge on the spot, as the halos of
-  // the paintings stand: so it reads as a round halo from near or far, high or low, and shrinks into the spot)
-  const mark = { t: -1, size: 1, p: new THREE.Vector3(), up: new THREE.Vector3(), q: new THREE.Quaternion(), m: new THREE.Matrix4(), s: new THREE.Vector3(), c: new THREE.Vector3() };
+  const mark = { t: -1, size: 1, p: new THREE.Vector3(), q: new THREE.Quaternion(), m: new THREE.Matrix4(), s: new THREE.Vector3() };
   /** A click has sent him to p (lying on ground whose normal is n), seen from `eye`. */
   function markAt(p, n, eye) {
     mark.t = 0;
     mark.p.copy(p);
-    const toEye = eye.clone().sub(p).normalize(), face = n.clone().multiplyScalar(0.45).add(toEye).normalize();
-    mark.q.setFromUnitVectors(V(0, 1, 0), face);
-    // (which way is up in the ring's own plane: from its centre to the spot is down)
-    mark.up.copy(n).addScaledVector(face, -n.dot(face)).normalize();
-    mark.size = THREE.MathUtils.clamp(eye.distanceTo(p) / 8, 0.8, 10);
-    things.mark.show(1); things.markRing.show(1);
+    mark.q.setFromUnitVectors(V(0, 1, 0), n);
+    mark.size = THREE.MathUtils.clamp(eye.distanceTo(p) / 5, 1, 14);
+    mark.m.compose(mark.p, mark.q, mark.s.setScalar(mark.size));
+    things.mark.setMatrix(mark.m, mark.size); things.markGlow.setMatrix(mark.m, mark.size);
+    things.mark.show(1); things.markGlow.show(1);
   }
   function updateMark(dt) {
     if (mark.t < 0) return;
     mark.t += dt;
-    const u = mark.t / 1.1;
-    if (u >= 1) { mark.t = -1; things.mark.show(0); things.markRing.show(0); return; }
-    const e = 1 - Math.pow(1 - u, 3), k = mark.size * (1.0 - 0.86 * e);
-    mark.c.copy(mark.p).addScaledVector(mark.up, k * 0.92 + 0.04);
-    mark.m.compose(mark.c, mark.q, mark.s.setScalar(k));
-    // (the strokes thin less than the ring shrinks, so that it stays a ring of light and not a speck)
-    const sk = mark.size * (1 - 0.5 * e);
-    things.mark.setMatrix(mark.m, sk);
-    things.markRing.setMatrix(mark.m, sk);
-    const fade = Math.min(1, u / 0.06) * (1 - THREE.MathUtils.smoothstep(u, 0.4, 1));
-    things.mark.uniforms.uTintK.value.setScalar(fade * 1.2);
-    things.markRing.show(Math.max(0.005, fade));
+    const u = mark.t / 1.25;
+    if (u >= 1) { mark.t = -1; things.mark.show(0); things.markGlow.show(0); return; }
+    const fade = Math.min(1, u / 0.08) * (1 - THREE.MathUtils.smoothstep(u, 0.55, 1));
+    things.mark.uniforms.uT.value = u;
+    things.mark.uniforms.uFade.value = fade;
+    // (the glow gathers as the sparks come in, and goes with them)
+    things.markGlow.uniforms.uFade.value = fade * (0.35 + 0.65 * THREE.MathUtils.smoothstep(u, 0.1, 0.6));
   }
 
   const sun = shared.uSunDir.value;

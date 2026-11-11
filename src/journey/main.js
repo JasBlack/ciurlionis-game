@@ -143,8 +143,9 @@ lap('figure');
 const frame = createFrame(renderer, shared);
 frame.uniforms.uCanvas.value = q.has('canvas') ? +q.get('canvas') : 0; // no grain laid over the picture: the strokes are its surface
 frame.uniforms.uBorder.value = q.has('border') ? +q.get('border') : 0; // the picture runs to the edge of the screen
-// the finish, after one of his media (?style=0..6); V tries the next
-frame.uniforms.uStyle.value = Math.max(0, Math.min(STYLES.length - 1, Math.round(+q.get('style') || 0)));
+// the finish, after one of his media (?style=0..6, card by default); V tries the next
+// (card, the board's tooth under the paint, unless the address asks for another)
+frame.uniforms.uStyle.value = q.has('style') ? Math.max(0, Math.min(STYLES.length - 1, Math.round(+q.get('style') || 0))) : 1;
 addEventListener('keydown', (e) => {
   if (e.code !== 'KeyV' || e.repeat || !loaded) return;
   const n = (frame.uniforms.uStyle.value + 1) % STYLES.length;

@@ -114,10 +114,16 @@
       #caption.on { opacity: 1; }
       #caption b { display: block; font-weight: 400; font-size: clamp(26px, 3.2vw, 44px); letter-spacing: 0.22em; padding-left: 0.22em; }
       #caption i { display: block; margin-top: 0.4em; font-size: clamp(16px, 1.45vw, 21px); letter-spacing: 0.05em; }
-      #pearls { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; pointer-events: none; opacity: 0; transition: opacity 2s; }
+      /* the pearls he has found: a small constellation, flat, its stars lit one by one */
+      #pearls { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); pointer-events: none; opacity: 0; transition: opacity 2s; filter: drop-shadow(0 0 1.5px rgba(20, 16, 50, 0.75)) drop-shadow(0 1px 6px rgba(20, 16, 50, 0.45)); }
       #pearls.on { opacity: 1; }
-      #pearls span { width: 15px; height: 15px; border-radius: 50%; border: 1px solid rgba(255, 240, 235, 0.6); background: rgba(43, 37, 48, 0.22); transition: all 1.2s; }
-      #pearls span.got { background: radial-gradient(circle at 35% 30%, #fffaf6, #f3c7cf 55%, #c98fa6); border-color: rgba(255, 250, 246, 0.9); box-shadow: 0 0 14px rgba(255, 225, 230, 0.95); transform: scale(1.2); }
+      #pearls svg { display: block; overflow: visible; }
+      #pearls polyline { stroke: #f1ecff; stroke-opacity: 0.7; }
+      #pearls path { fill: #e6defc; fill-opacity: 0.6; stroke: rgba(24, 20, 56, 0.55); stroke-width: 0.8; transform-box: fill-box; transform-origin: center; }
+      #pearls path.got { fill: #fff6dc; fill-opacity: 1; stroke: rgba(150, 110, 40, 0.6); }
+      #pearls path.new { animation: twinkle 1.6s ease-out; }
+      @keyframes twinkle { 0% { transform: scale(2.4) rotate(45deg); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
+      @media (prefers-reduced-motion: reduce) { #pearls path.new { animation: none; } }
       #hint { position: fixed; right: 18px; bottom: 16px; color: var(--cream); font-size: 15px; letter-spacing: 0.03em; opacity: 0; transition: opacity 2s; pointer-events: none;
         text-shadow: 0 1px 6px rgba(var(--ink), 0.8); text-align: right; line-height: 1.45; max-width: 40vw; }
       #hint.on { opacity: 0.8; }
