@@ -246,8 +246,8 @@ ctx.story = story;
 // touched, or he has stopped getting nearer (a wall, the edge of the painting) ---
 const walkTo = { on: false, x: 0, z: 0, best: Infinity, stall: 0 };
 let cursorCheck = 0;
-// --- the cursor: a firefly. A tiny light, cream with a gold heart, and a short tail of fading dabs where the mouse has
-// just been. It is faint where a click would find no ground, and warms toward rose when it points the way to the
+// --- the cursor: a firefly. A small light, cream with a gold heart, four tiny sparks going round it (painted, gold and
+// rose, as the sparks a click leaves), and a short tail of fading dabs where the mouse has just been. It is faint where a click would find no ground, and warms toward rose when it points the way to the
 // next thing to find. It is drawn by a little loop of its own, so it keeps up with the hand however slowly the picture
 // itself is coming. (The system's arrow is kept for fingers and over everything else on the page.) ---
 const fly = { el: document.getElementById('cursor'), x: 0, y: 0, on: false, faint: 0, faintGoal: 0, way: 0, wayGoal: 0, trail: [], box: null };
@@ -263,41 +263,97 @@ if (fly.el) {
     fly.trail.push([e.clientX, e.clientY, performance.now()]);
   });
   el.addEventListener('pointerleave', () => { fly.on = false; });
+  // (a click: the sparks flare out from it for a moment, as the spiral winds in on the ground)
+  el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) fly.burst = 1; });
   const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
   const CREAM = [255, 244, 220], GOLD = [242, 201, 106], ROSE = [243, 177, 162];
+  // (the colours of the click's sparks)
+  const SPARK = [250, 204, 107], SPARK_ROSE = [245, 168, 153], AMBER = [214, 140, 52], MADDER = [204, 102, 98];
   const rgba = (v, a) => `rgba(${v[0]},${v[1]},${v[2]},${a})`;
+  // the sparks that go round it: tiny painted dashes, gold and one rose, each with a breath of light, circling on a
+  // tilted ring, so that they pass behind it and come round in front
+  const SPARKS = [
+    { r: 14.5, w: 2.0, p: 0.0, rose: false },
+    { r: 12.5, w: 2.7, p: 2.3, rose: true },
+    { r: 16.5, w: 1.6, p: 4.0, rose: false },
+    { r: 11.5, w: 3.2, p: 5.2, rose: false },
+  ];
+  const TILT = -0.38, FLAT = 0.48; // (the ring leans a little, and is seen from a little above)
+  const ct = Math.cos(TILT), st = Math.sin(TILT);
+  fly.burst = 0; fly.spin = 0; fly.ox = 0; fly.oy = 0; fly.was = false;
   let last = performance.now();
   const draw = (now) => {
     requestAnimationFrame(draw);
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     fly.way += (fly.wayGoal - fly.way) * (1 - Math.exp(-5 * dt));
     fly.faint += (fly.faintGoal - fly.faint) * (1 - Math.exp(-6 * dt));
+    fly.burst *= Math.exp(-3.5 * dt);
+    fly.spin += dt * (1 + 0.7 * fly.way + 1.5 * fly.burst);
     while (fly.trail.length && now - fly.trail[0][2] > 260) fly.trail.shift();
     if (fly.box) c.clearRect(...fly.box);
     fly.box = null;
-    if (!fly.on || document.pointerLockElement) return; // (while a drag holds the mouse, there is no cursor)
-    const d = fly.d, w = fly.way, a0 = 1 - 0.6 * fly.faint, t = now / 1000;
-    let x0 = fly.x, y0 = fly.y, x1 = fly.x, y1 = fly.y;
+    if (!fly.on || document.pointerLockElement) { fly.was = false; return; } // (while a drag holds the mouse, there is no cursor)
+    // (the sparks keep a little behind the hand, as fireflies would)
+    if (!fly.was) { fly.ox = fly.x; fly.oy = fly.y; fly.was = true; }
+    const lag = 1 - Math.exp(-20 * dt);
+    fly.ox += (fly.x - fly.ox) * lag; fly.oy += (fly.y - fly.oy) * lag;
+    { const lx = fly.ox - fly.x, ly = fly.oy - fly.y, l = Math.hypot(lx, ly), most = 6; if (l > most) { fly.ox = fly.x + lx * most / l; fly.oy = fly.y + ly * most / l; } }
+    const d = fly.d, w = fly.way, b = fly.burst, a0 = 1 - 0.6 * fly.faint, t = now / 1000;
+    let x0 = Math.min(fly.x, fly.ox), y0 = Math.min(fly.y, fly.oy), x1 = Math.max(fly.x, fly.ox), y1 = Math.max(fly.y, fly.oy);
     c.setTransform(d, 0, 0, d, 0, 0);
     // the tail: small dabs where it has been, fading as they age
     for (const [x, y, at] of fly.trail) {
       const k = 1 - (now - at) / 260;
       c.fillStyle = rgba(mix(GOLD, ROSE, w), a0 * k * (0.55 + 0.3 * w));
-      c.beginPath(); c.arc(x, y, 0.5 + 1.0 * k, 0, 6.2832); c.fill();
+      c.beginPath(); c.arc(x, y, 0.7 + 1.3 * k, 0, 6.2832); c.fill();
       x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
     }
-    // its light, breathing a little, and its body, with a touch of ink under it to read over pale ground
-    c.fillStyle = rgba(mix(GOLD, ROSE, w), a0 * (0.16 + 0.07 * Math.sin(t * 4)));
-    c.beginPath(); c.arc(fly.x, fly.y, 4, 0, 6.2832); c.fill();
-    c.shadowColor = 'rgba(24,18,52,0.55)'; c.shadowBlur = 2 * d; c.shadowOffsetY = 0.5 * d;
+    // where each spark is now: on its ring, its depth (behind, -1 .. in front, 1), and which way it is going
+    const R = (1 - 0.18 * w) * (1 + 1.1 * b);
+    const at = SPARKS.map((k, i) => {
+      const a = k.p + fly.spin * k.w, r = k.r * R, ex = Math.cos(a) * r, ey = Math.sin(a) * r * FLAT;
+      const vx = -Math.sin(a), vy = Math.cos(a) * FLAT;
+      return { k, i, x: fly.ox + ex * ct - ey * st, y: fly.oy + ex * st + ey * ct, z: Math.sin(a), rot: Math.atan2(vx * st + vy * ct, vx * ct - vy * st) };
+    });
+    const spark = (q) => {
+      const tw = 0.75 + 0.25 * Math.sin(t * 5.3 + q.i * 1.9), sz = 1.12 * (0.86 + 0.18 * q.z) * (1 + 0.35 * b);
+      const col = mix(q.k.rose ? SPARK_ROSE : SPARK, SPARK_ROSE, 0.75 * w), a = a0 * (0.85 + 0.15 * q.z) * Math.min(1, tw + 0.5 * b);
+      // its breath of light
+      c.globalCompositeOperation = 'lighter';
+      c.fillStyle = rgba(col, 0.32 * a);
+      c.beginPath(); c.arc(q.x, q.y, 4.4 * sz, 0, 6.2832); c.fill();
+      c.fillStyle = rgba(col, 0.3 * a);
+      c.beginPath(); c.arc(q.x, q.y, 2.4 * sz, 0, 6.2832); c.fill();
+      c.globalCompositeOperation = 'source-over';
+      // and the dash itself, painted, with a touch of ink under it so it reads over pale ground
+      // (its body, a deeper amber or madder, the colour a painter would give light on a pale ground)
+      const deep = mix(q.k.rose ? MADDER : AMBER, MADDER, 0.75 * w);
+      c.shadowColor = `rgba(24,18,52,${0.6 * a})`; c.shadowBlur = 1.8 * d; c.shadowOffsetY = 0.5 * d;
+      c.fillStyle = rgba(deep, a);
+      c.beginPath(); c.ellipse(q.x, q.y, 3.7 * sz, 1.5 * sz, q.rot, 0, 6.2832); c.fill();
+      c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0;
+      c.fillStyle = rgba(col, a);
+      c.beginPath(); c.ellipse(q.x + Math.cos(q.rot) * 0.3 * sz, q.y + Math.sin(q.rot) * 0.3 * sz, 3.0 * sz, 1.1 * sz, q.rot, 0, 6.2832); c.fill();
+      // (and its bright heart, toward the way it goes)
+      c.fillStyle = rgba(CREAM, a * tw);
+      c.beginPath(); c.ellipse(q.x + Math.cos(q.rot) * 0.8 * sz, q.y + Math.sin(q.rot) * 0.8 * sz, 2.0 * sz, 0.68 * sz, q.rot, 0, 6.2832); c.fill();
+      c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0;
+      x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+    };
+    for (const q of at) if (q.z < 0) spark(q);
+    // its light, breathing a little, and its body, with a soft touch of ink under it to read over pale ground
+    c.fillStyle = rgba(mix(GOLD, ROSE, w), a0 * (0.17 + 0.07 * Math.sin(t * 4) + 0.15 * b));
+    c.beginPath(); c.arc(fly.x, fly.y, 8.5, 0, 6.2832); c.fill();
+    c.shadowColor = 'rgba(24,18,52,0.55)'; c.shadowBlur = 2.6 * d; c.shadowOffsetY = 0.6 * d;
     c.fillStyle = rgba(mix(CREAM, GOLD, w), a0);
-    c.beginPath(); c.arc(fly.x, fly.y, 2, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(fly.x, fly.y, 3.6, 0, 6.2832); c.fill();
     c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0;
-    c.strokeStyle = `rgba(35,26,64,${0.5 * a0})`; c.lineWidth = 0.6; c.stroke();
+    c.strokeStyle = `rgba(35,26,64,${0.22 * a0})`; c.lineWidth = 0.6; c.stroke();
     c.fillStyle = rgba(mix(GOLD, ROSE, w * 0.7), a0 * 0.9);
-    c.beginPath(); c.arc(fly.x, fly.y, 0.8, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(fly.x, fly.y, 1.5, 0, 6.2832); c.fill();
+    for (const q of at) if (q.z >= 0) spark(q);
     c.setTransform(1, 0, 0, 1, 0, 0);
-    const m = 8;
+    const m = 16;
     fly.box = [Math.floor((x0 - m) * d), Math.floor((y0 - m) * d), Math.ceil((x1 - x0 + 2 * m) * d), Math.ceil((y1 - y0 + 2 * m) * d)];
   };
   requestAnimationFrame(draw);
