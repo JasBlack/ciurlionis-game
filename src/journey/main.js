@@ -15,7 +15,7 @@ import RAPIER from '../figure/rapier/rapier.mjs';
 import { createShared, WIND } from '../oilpaint/common.js';
 import { createLeafSheet } from './brush.js';
 import { createShade } from '../oilpaint/shade.js';
-import { Animator } from '../figure/animator.js';
+import { Animator, SETUP } from '../figure/animator.js';
 import { Player, TUNING } from '../figure/player.js';
 import { Input } from '../figure/input.js';
 import { Follow } from '../figure/camera.js';
@@ -127,10 +127,13 @@ lap('physics');
 const figure = await figureComing;
 const { man } = figure;
 scene.add(man.object, figure.dabs);
-const animator = new Animator(man);
+// (his own pace is a brisk walk, a little quicker than the walk's own: the stride is kept and the steps come quicker)
+const animator = new Animator(man, { ...SETUP, speeds: { ...SETUP.speeds, walk: 1.85 } });
 const START = PLACES.start;
 const spawn = new THREE.Vector3(START.x, floorAt(START.x, START.z), START.z);
 const player = new Player({ RAPIER, world: physics, man, animator, spawn, yaw: Math.PI, tuning: { ...TUNING, maxSlopeDeg: 62, stepHeight: 0.42 } });
+// (only a long run tires him, and not for long)
+player.tire = { speed: 4.5, after: 40, hold: 3 };
 const follow = new Follow(camera);
 follow.yaw = Math.PI;
 follow.pitch = 0.0;
@@ -439,12 +442,15 @@ function tick(dt) {
   inp.look.y = 0;
   updateCursor(inp);
   steer(inp, dt);
+  // his own pace, with the keys or sent by a click, is a brisk walk; Shift held is a run. (There is no sprint here.)
+  { const hurry = inp.sprint; inp.sprint = false; inp.walk = !hurry; }
   if (story.frozen) { inp.move.x = inp.move.y = 0; inp.jump = false; }
   if (swim > 0.5) {
     // swimming is slower than running, and there is no sprinting or jumping in it
-    inp.sprint = false; inp.jump = false;
+    inp.sprint = false; inp.jump = false; inp.walk = false; // (the swim keeps its own pace)
     const m = Math.hypot(inp.move.x, inp.move.y);
-    if (m > 0.05) { inp.move.x *= 0.74 / m; inp.move.y *= 0.74 / m; inp.device = 'pad'; }
+    // (held at 0.71 of the way, which the player reads as 2.8 m/s: between his walk and his run)
+    if (m > 0.05) { inp.move.x *= 0.71 / m; inp.move.y *= 0.71 / m; inp.device = 'pad'; }
   }
   if (ctx.scripted) {
     root.copy(ctx.scripted.root);
