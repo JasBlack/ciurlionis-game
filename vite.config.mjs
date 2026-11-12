@@ -9,7 +9,7 @@ export default {
   publicDir: 'public',
   resolve: { alias: [{ find: /^patch-block$/, replacement: `${here}lib/patch-block.js` }] },
   server: { watch: { ignored: ['**/vendor/**', '**/*.mp4'] } },
-  optimizeDeps: { entries: ['index.html'] },
+  optimizeDeps: { entries: ['index.html', 'clay.html'] },
   build: {
     target: 'es2022',
     outDir: `${here}dist`,
@@ -17,5 +17,7 @@ export default {
     assetsInlineLimit: 0,
     modulePreload: { polyfill: false },
     chunkSizeWarningLimit: 8000,
+    // two pages: the game, and the clay study beside it
+    rolldownOptions: { input: { index: `${here}index.html`, clay: `${here}clay.html` } },
   },
 };

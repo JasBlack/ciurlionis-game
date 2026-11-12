@@ -61,6 +61,23 @@ Add these after the address, for example `http://localhost:5410/?at=garden&fps`.
 | `canvas=1`, `impasto=0..2` | parts of the finish, for comparing (`canvas=1` lays a board's grain over the picture) |
 | `debug` | check shaders for errors while loading |
 
+## Clay study
+
+A separate page, `clay.html` (`http://localhost:5410/clay.html`): one beast in the manner of clay stop motion, made
+wholly in code. Lumps pressed into a body, white coils laid over it for a skeleton, fingerprints, studio light or
+blacklight, twelve held poses a second. It shares nothing with the game but three.js, and is there to try whether that
+look can be had without photographs or modelled figures.
+
+| Option | What it does |
+|---|---|
+| `seed=1..` | which beast (the button makes another) |
+| `glow` | start under blacklight |
+| `smooth` | start with stop motion off |
+| `plain` | no lens blur, bloom or grain |
+| `still=2.5` | hold the moment 2.5 seconds in |
+| `az=30&el=12&d=6` | where the camera stands: degrees round, degrees up, distance |
+| `ratio=1` | hold the render resolution |
+
 ## Build and host
 
 ```bash
@@ -81,6 +98,7 @@ moves, with `Failed to resolve module specifier "three"` in the browser's consol
 | | |
 |---|---|
 | `src/journey/` | the game: `main.js` (the loop, and walking where a click sends him), `story.js` (levels, portals, the flight, the finale), `way.js` and `land.js` (the island), `paint.js` and `mood.js` (palettes and each level's hour), `ground.js`, `water.js`, `sky.js`, `far.js` (what the world is painted with), `kit.js` (shapes with strokes on them), `flora.js` and `pieces.js` (what stands on the island), `props.js` (the ring of light, the pearls, the sparks, the ring that marks a click), `painter.js` (the figure), `body.js` (how he stands, swims, rides and gives his hand), `brush.js` and `finish.js` (the look), `hud.js` (title, loading bar, captions) |
+| `src/clay/` | the clay study: `creature.js` (the beast: its lumps, coils and bones), `field.js` (the body as a field, its skin and creases), `coil.js` (a rolled piece), `material.js` (clay: prints, lumps, colours, glow), `main.js` (table, light, lens, time) |
 | `src/oilpaint/` | Patch's oil paint block, unchanged: the dab, the brush, the steady ground, shade, the canvas |
 | `src/figure/` | Patch's starter man and his movement, with the Rapier physics it uses |
 | `public/figure/` | the figure and his animation clips |

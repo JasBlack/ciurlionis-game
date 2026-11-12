@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Clay Beast Study</title>
+    <meta name="description" content="A clay beast made entirely in code: coils, fingerprints, blacklight and stop motion." />
+    <link rel="icon" href="data:," />
+    <!--fonts-->
+    <style>
+      /* Cormorant Garamond (SIL Open Font License 1.1, see LICENSES/OFL-1.1-Cormorant-Garamond.txt) */
+      @font-face { font-family: 'Cormorant Garamond'; font-style: normal; font-weight: 300 700; font-display: swap; src: url(./fonts/cormorant-garamond-latin-wght-normal.woff2) format('woff2'); }
+      @font-face { font-family: 'Cormorant Garamond'; font-style: italic; font-weight: 300 700; font-display: swap; src: url(./fonts/cormorant-garamond-latin-wght-italic.woff2) format('woff2'); }
+    </style>
+    <!--/fonts-->
+    <style>
+      /* Layout: the stage fills the page; a title stands top left and the controls lie along the bottom, both over the picture. */
+      :root {
+        color-scheme: dark;
+        --table: #000000;      /* the black card the beast stands on */
+        --clay: #efeae2;       /* white clay, for words */
+        --clay-dim: #a9a49d;   /* the same, in shadow */
+        --seam: #3a3840;       /* a line pressed into dark card */
+        --fringe: #ffd91a;     /* the yellow on the seams of its body, for what is switched on */
+        --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+      }
+      [hidden] { display: none !important; }
+      html, body { height: 100%; }
+      body { margin: 0; background: var(--table); color: var(--clay); font-family: var(--serif); overflow: hidden; }
+      #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+      .over { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none;
+        padding-block: calc(18px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-bottom, 0px));
+        padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+      .over > * { pointer-events: auto; }
+      header { max-width: 30rem; pointer-events: none; }
+      h1 { margin: 0; font-size: clamp(1.9rem, 4.2vw, 2.7rem); font-weight: 500; font-style: italic; line-height: 1; letter-spacing: 0.01em; text-wrap: balance; }
+      header p { margin: 0.55rem 0 0; font-size: 1.08rem; line-height: 1.35; color: var(--clay-dim); max-width: 26rem; }
+      footer { display: flex; flex-direction: column; gap: 0.7rem; }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.4rem; }
+      .controls button, .controls label { font: inherit; font-size: 1.15rem; color: var(--clay); cursor: pointer; }
+      .controls button { background: none; border: 1px solid var(--seam); border-radius: 999px; padding: 0.32rem 1.05rem 0.4rem; transition: border-color 0.2s, color 0.2s; }
+      .controls button:hover { border-color: var(--clay-dim); }
+      .controls label { display: inline-flex; align-items: center; gap: 0.5rem; padding-block: 0.3rem; user-select: none; -webkit-user-select: none; }
+      .controls input { appearance: none; -webkit-appearance: none; margin: 0; width: 0.82rem; height: 0.82rem; border-radius: 50%; border: 1px solid var(--clay-dim); background: none; cursor: pointer; transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; }
+      .controls input:checked { background: var(--fringe); border-color: var(--fringe); box-shadow: 0 0 10px color-mix(in srgb, var(--fringe) 55%, transparent); }
+      .controls button:focus-visible, .controls input:focus-visible { outline: 2px solid var(--fringe); outline-offset: 3px; }
+      .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.2rem 1.5rem; font-size: 0.98rem; color: var(--clay-dim); font-variant-numeric: tabular-nums; }
+      .foot p { margin: 0; }
+      #wait { position: fixed; inset: 0; display: grid; place-items: center; font-size: 1.3rem; font-style: italic; color: var(--clay-dim); pointer-events: none; text-align: center; padding: 0 20px; }
+      @media (max-width: 30rem) { header p { font-size: 1rem; } .controls { gap: 0.3rem 1.1rem; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" tabindex="-1" aria-label="A clay beast on a black table. Drag to look round it."></canvas>
+    <p id="wait" role="status">Shaping the clay…</p>
+    <div class="over">
+      <header>
+        <h1>Clay study</h1>
+        <p>Nothing here is photographed or sculpted. The body, the coils laid over it, the fingerprints and the light are worked out in code as you watch.</p>
+      </header>
+      <footer>
+        <div class="controls">
+          <button type="button" id="reseed">Another beast</button>
+          <label><input type="checkbox" id="blacklight" /> Blacklight</label>
+          <label><input type="checkbox" id="twos" checked /> Stop motion</label>
+          <label><input type="checkbox" id="prints" checked /> Fingerprints</label>
+        </div>
+        <div class="foot">
+          <p>Drag to look round it. Scroll or pinch to come closer.</p>
+          <p id="caption"></p>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="./src/clay/main.js"></script>
+  </body>
+</html>
