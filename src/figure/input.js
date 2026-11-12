@@ -26,6 +26,7 @@ export class Input {
     this.lean = 0.3;
     this.cursor = { x: 0, y: 0, inside: false };
     this.leaned = 0;
+    this.rebase = true;
     this.press = null;
     const typing = () => document.activeElement?.tagName === 'INPUT';
     const down = (e) => {
@@ -39,24 +40,42 @@ export class Input {
     addEventListener('keydown', down);
     addEventListener('keyup', up);
     addEventListener('blur', () => { this.keys.clear(); this.press = null; this.cursor.inside = false; this.mouse.middle = this.mouse.right = false; el.classList.remove('dragging'); });
-    // (the middle button, held, takes the eye round him: all the way round, and up and over)
-    el.addEventListener('mousedown', (e) => { if (e.button === 2) this.mouse.right = true; if (e.button === 1) { this.mouse.middle = true; e.preventDefault(); } });
-    addEventListener('mouseup', (e) => { if (e.button === 2) this.mouse.right = false; if (e.button === 1) this.mouse.middle = false; });
+    // (the middle button, or the right, held, takes the eye round him: all the way round, and up and over. For as
+    // long as it is held the mouse is locked to the picture, so it can go round and round without the cursor coming
+    // to the edge of the screen; let go, the cursor is back where it was)
+    const locked = () => document.pointerLockElement === el;
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 1 && e.button !== 2) return;
+      if (e.button === 2) this.mouse.right = true; else { this.mouse.middle = true; e.preventDefault(); }
+      if (!locked()) el.requestPointerLock?.()?.catch?.(() => {});
+    });
+    addEventListener('mouseup', (e) => {
+      if (e.button === 2) this.mouse.right = false;
+      if (e.button === 1) this.mouse.middle = false;
+      if (!this.mouse.right && !this.mouse.middle && locked()) document.exitPointerLock?.();
+    });
+    document.addEventListener('pointerlockchange', () => { if (!locked()) { this.mouse.right = this.mouse.middle = false; this.rebase = true; } });
     el.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    addEventListener('mousemove', (e) => { if (this.mouse.right || this.mouse.middle) { this.mouse.x += e.movementX; this.mouse.y += e.movementY; } });
-    el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this.cursor.inside = false; });
+    // (a held-button drag turns a little quicker than looking about: a sweep of the arm takes the eye most of the way round)
+    addEventListener('mousemove', (e) => { if (this.mouse.right || this.mouse.middle) { this.mouse.x += 1.5 * e.movementX; this.mouse.y += 1.2 * e.movementY; } });
+    // (when the mouse leaves the picture the eye stays as it is; when it comes back it takes up from where it is then,
+    // without a jump)
+    el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !locked()) this.cursor.inside = false; });
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), drag: false, armed: this.clickable };
       el.setPointerCapture?.(e.pointerId);
     });
     el.addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'mouse') Object.assign(this.cursor, { x: (e.clientX / innerWidth) * 2 - 1, y: (e.clientY / innerHeight) * 2 - 1, inside: true });
+      if (e.pointerType === 'mouse' && !locked()) {
+        if (!this.cursor.inside) this.rebase = true;
+        Object.assign(this.cursor, { x: (e.clientX / innerWidth) * 2 - 1, y: (e.clientY / innerHeight) * 2 - 1, inside: true });
+      }
       const p = this.press;
       if (!p || e.pointerId !== p.id) return;
       if (!p.drag && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 7) { p.drag = true; el.classList.add('dragging'); }
-      if (p.drag && !this.mouse.right) { this.mouse.x += e.clientX - p.lx; this.mouse.y += e.clientY - p.ly; }
+      if (p.drag && !this.mouse.right && !this.mouse.middle) { this.mouse.x += e.clientX - p.lx; this.mouse.y += e.clientY - p.ly; }
       p.lx = e.clientX; p.ly = e.clientY;
     });
     const release = (e) => {
@@ -64,6 +83,7 @@ export class Input {
       if (!p || e.pointerId !== p.id) return;
       this.press = null;
       el.classList.remove('dragging');
+      if (p.drag) this.rebase = true; // (after a drag the eye stays where the drag left it)
       if (e.type === 'pointerup' && !p.drag && p.armed && performance.now() - p.t < 700) this.clicks.push({ x: e.clientX, y: e.clientY });
     };
     el.addEventListener('pointerup', release);
@@ -82,25 +102,29 @@ export class Input {
       move: { x, y },
       walk: this.walkToggle !== (k.has('AltLeft') || k.has('AltRight')),
       sprint: k.has('ShiftLeft') || k.has('ShiftRight'),
-      strafe: k.has('KeyF'),
+      strafe: false,
       jump: this.pressed.has('Space'),
       look: { x: this.mouse.x * this.sensitivity, y: this.mouse.y * this.sensitivity },
       zoom: this.mouse.wheel,
       device: 'keyboard',
       clicks: this.clicks.splice(0),
       cursor: { ...this.cursor },
-      orbit: this.mouse.middle,
+      orbit: this.mouse.middle || this.mouse.right,
     };
     this.mouse.x = this.mouse.y = this.mouse.wheel = 0;
     this.pressed.clear();
     // the eye follows the free mouse: a lean toward its side (given back as it comes back to the middle), and a
     // steady turn while it is held at the very edge. (Not while a press is dragged: that looks about by itself.)
     const c = this.cursor, steer = this.follows && c.inside && !(this.press?.drag) && !this.mouse.right && !this.mouse.middle;
-    const want = steer ? Math.sign(c.x) * Math.pow(Math.min(1, Math.abs(c.x)), 1.4) * this.lean : 0;
-    const leaned = damp(this.leaned, want, 5, dt);
+    const leanAt = (x) => Math.sign(x) * Math.pow(Math.min(1, Math.abs(x)), 1.4) * this.lean;
+    // (coming back into the picture, or let go after a drag: the lean is taken up from here, the eye does not move)
+    if (this.rebase && steer) { this.leaned = leanAt(c.x); this.rebase = false; }
+    // (out of the picture, or while a drag looks about by itself, the lean is held as it is, not given back)
+    const want = steer ? leanAt(c.x) : this.follows ? this.leaned : 0;
+    const leaned = damp(this.leaned, want, 8, dt);
     s.look.x += leaned - this.leaned;
     this.leaned = leaned;
-    if (steer) { const edge = Math.min(1, Math.max(0, (Math.abs(c.x) - 0.84) / 0.14)); s.look.x += Math.sign(c.x) * Math.pow(edge, 1.5) * 1.2 * dt; }
+    if (steer) { const edge = Math.min(1, Math.max(0, (Math.abs(c.x) - 0.78) / 0.2)); s.look.x += Math.sign(c.x) * Math.pow(edge, 1.4) * 1.25 * dt; }
 
     // gamepad: left stick moves (its tilt sets the speed), right stick looks, L3 sprints,
     // A jumps, LT strafes, d-pad up/down zooms

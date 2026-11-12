@@ -147,6 +147,19 @@
       }
       /* the cursor: a firefly, drawn on a canvas of its own over the picture */
       #cursor { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
+      /* full screen: two pairs of corners, at the top right, out of the dark only when the mouse comes near */
+      #fs { position: fixed; top: max(10px, env(safe-area-inset-top, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); z-index: 41; width: 42px; height: 42px; padding: 10px;
+        border: 0; border-radius: 50%; background: none; color: var(--cream); cursor: pointer; opacity: 0; transition: opacity 0.7s ease;
+        filter: drop-shadow(0 0 1.5px rgba(var(--ink), 0.8)) drop-shadow(0 1px 5px rgba(var(--ink), 0.5)); -webkit-tap-highlight-color: transparent; }
+      #fs[hidden] { display: none; }
+      #fs.near { opacity: 0.7; transition-duration: 0.35s; }
+      #fs:hover, #fs:focus-visible { opacity: 1; }
+      #fs:focus-visible { outline: 1px solid rgba(255, 244, 220, 0.6); outline-offset: 2px; }
+      #fs svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.35s ease; }
+      #fs:hover svg { transform: scale(1.08); }
+      #fs .out, html.full #fs .in { display: none; }
+      html.full #fs .out { display: inline; }
+      @media (hover: none) { #fs { opacity: 0.45; } }
     </style>
   </head>
   <body>
@@ -155,7 +168,8 @@
     <div id="caption"><b></b><i></i></div>
     <div id="pearls"></div>
     <canvas id="cursor" aria-hidden="true"></canvas>
-    <div id="hint">Move the mouse to look (to the edge to turn) · click the ground to walk there, or W A S D · Shift run · Space jump<br />drag to turn faster · wheel steps back · Enter full screen · M music · V finish · H hides this</div>
+    <button id="fs" type="button" hidden aria-label="Full screen" title="Full screen (F)"><svg viewBox="0 0 22 22" aria-hidden="true"><path class="in" d="M2 7.5V2h5.5M14.5 2H20v5.5M20 14.5V20h-5.5M7.5 20H2v-5.5" /><path class="out" d="M7.5 2v5.5H2M20 7.5h-5.5V2M14.5 20v-5.5H20M2 14.5h5.5V20" /></svg></button>
+    <div id="hint">Move the mouse to look (to the edge to turn) · click the ground to walk there, or W A S D · Shift run · Space jump<br />drag to turn faster · hold the middle button to go round him · wheel steps back · F full screen · M music · V finish · H hides this</div>
     <div id="title">
       <div class="veil"></div>
       <div class="words">
@@ -164,7 +178,7 @@
         <h2><b>Kelionė</b><span class="dot">·</span><em>a walk through the paintings</em></h2>
         <div id="bar"><i></i></div>
         <p id="begin">Loading</p>
-        <p id="keys">Move the mouse to look about · click the ground or press W A S D to walk</p>
+        <p id="keys">Move the mouse to look about · click the ground or press W A S D to walk · F full screen</p>
       </div>
     </div>
     <script>

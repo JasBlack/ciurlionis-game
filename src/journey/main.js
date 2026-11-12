@@ -153,11 +153,38 @@ addEventListener('keydown', (e) => {
   frame.uniforms.uStyle.value = n;
   hud.caption('', `Finish ${n} · ${STYLES[n]}  (V for the next)`, 3);
 });
-// Enter: the whole screen, and back
-addEventListener('keydown', (e) => {
-  if (e.code !== 'Enter') return;
-  if (document.fullscreenElement) document.exitFullscreen?.(); else document.documentElement.requestFullscreen?.().catch(() => {});
-});
+// F (or Enter): the whole screen, and back. The same from the little corners at the top right, which come out of the
+// dark only when the mouse comes near them.
+{
+  const root = document.documentElement, fs = document.getElementById('fs');
+  const full = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const can = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  const toggle = () => {
+    if (full()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+    else (root.requestFullscreen || root.webkitRequestFullscreen)?.call(root, { navigationUI: 'hide' })?.catch?.(() => {});
+  };
+  addEventListener('keydown', (e) => {
+    if ((e.code !== 'KeyF' && e.code !== 'Enter') || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target?.closest?.('button')) return; // (Enter on the button is the button's own)
+    toggle();
+  });
+  const mark = () => root.classList.toggle('full', !!full());
+  document.addEventListener('fullscreenchange', mark); document.addEventListener('webkitfullscreenchange', mark);
+  if (fs && can) {
+    fs.hidden = false;
+    // (a press on it is for it alone: it does not begin the journey, or send him walking)
+    fs.addEventListener('pointerdown', (e) => e.stopPropagation());
+    fs.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); });
+    fs.addEventListener('click', (e) => { e.stopPropagation(); toggle(); fs.blur(); });
+    let near = false;
+    addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      const n = !document.pointerLockElement && innerWidth - e.clientX < 150 && e.clientY < 150;
+      if (n !== near) { near = n; fs.classList.toggle('near', n); }
+    });
+    document.documentElement.addEventListener('mouseleave', () => { near = false; fs.classList.remove('near'); });
+  }
+}
 
 // the wind, for anything that wants it in JavaScript
 const wind = { x: WIND.x, z: WIND.y };
@@ -248,7 +275,7 @@ if (fly.el) {
     while (fly.trail.length && now - fly.trail[0][2] > 260) fly.trail.shift();
     if (fly.box) c.clearRect(...fly.box);
     fly.box = null;
-    if (!fly.on) return;
+    if (!fly.on || document.pointerLockElement) return; // (while a drag holds the mouse, there is no cursor)
     const d = fly.d, w = fly.way, a0 = 1 - 0.6 * fly.faint, t = now / 1000;
     let x0 = fly.x, y0 = fly.y, x1 = fly.x, y1 = fly.y;
     c.setTransform(d, 0, 0, d, 0, 0);

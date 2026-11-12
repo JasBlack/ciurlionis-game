@@ -19,9 +19,10 @@ Then open `http://localhost:5410`. Use Chrome or Edge with a real graphics card.
 
 | | |
 |---|---|
-| Move the mouse | look: the view leans toward the side the mouse is on, and keeps turning while it is at the edge |
+| Move the mouse | look: the view leans toward the side the mouse is on, and keeps turning while it is at the edge; if the mouse leaves the window the view stays where it is |
 | Click (or tap) the ground or the sea | walk or swim there; sparks wind in to the spot |
-| Drag (either button, or a finger) | turn the view directly |
+| Drag (left button, or a finger) | turn the view directly |
+| Hold the middle (or right) button and move | go all the way round him, and up over him; the mouse is held for as long as the button is |
 | The mouse, on the salamander in the air | it flies toward it: to the sides to turn, up to climb, down to dive |
 | A D, on the salamander in the air | turn (it also flies where you look) |
 | V | try the next finish (plain, card, tempera, pastel, watercolour, haze, brushed) |
@@ -29,7 +30,7 @@ Then open `http://localhost:5410`. Use Chrome or Edge with a real graphics card.
 | Shift | run |
 | Space | jump |
 | Mouse wheel | step the eye back or in |
-| Enter | full screen |
+| F (or Enter), or the corners at the top right | full screen |
 | M | music on / off |
 | F2 | frames a second and render resolution |
 | H | hide the hint |
