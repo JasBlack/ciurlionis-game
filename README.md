@@ -26,8 +26,8 @@ Then open `http://localhost:5410`. Use Chrome or Edge with a real graphics card.
 | The mouse, on the salamander in the air | it flies toward it: to the sides to turn, up to climb, down to dive |
 | A D, on the salamander in the air | turn (it also flies where you look) |
 | V | try the next finish (plain, card, tempera, pastel, watercolour, haze, brushed) |
-| W A S D | swim, walk; on the salamander W is faster, S slower |
-| Shift | run |
+| W A S D | swim, walk (a brisk walk); on the salamander W is faster, S slower |
+| Shift | run (also with a click); only a long run tires him |
 | Space | jump |
 | Mouse wheel | step the eye back or in |
 | F (or Enter), or the corners at the top right | full screen |

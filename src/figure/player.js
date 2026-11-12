@@ -22,6 +22,9 @@ export const TUNING = {
 export class Player {
   constructor({ RAPIER, world, man, animator, spawn, yaw = 0, tuning = TUNING }) {
     this.R = RAPIER; this.world = world; this.man = man; this.anim = animator; this.t = tuning;
+    // what tires him: going faster than `speed` (by default, sprinting) for longer than `after` seconds; stopped then, he
+    // catches his breath for `hold` seconds
+    this.tire = { speed: null, after: 1.5, hold: 6 };
     this.yaw = yaw;
     this.vel = new THREE.Vector3();
     this.speed = 0; // horizontal speed along where he's going
@@ -138,7 +141,7 @@ export class Player {
         this.mode = 'stop';
         this.stopSpeed = this.speed;
         A.enter(A.oneShot('stop', clip, { from, to: 0.92 }), 0.22);
-        if (this.sprintTime > 1.5) this.tiredFor = 6;
+        if (this.sprintTime > this.tire.after) this.tiredFor = this.tire.hold;
         return this.step(dt, new THREE.Vector3(), true);
       }
       // ordinary movement
@@ -169,7 +172,7 @@ export class Player {
         this.moveAngle = 0;
         desired.copy(this.facing()).multiplyScalar(this.speed);
       }
-      this.sprintTime = this.speed > A.setup.speeds.run + 0.3 ? (this.sprintTime ?? 0) + dt : Math.max(0, (this.sprintTime ?? 0) - dt * 0.5);
+      this.sprintTime = this.speed > (this.tire.speed ?? A.setup.speeds.run + 0.3) ? (this.sprintTime ?? 0) + dt : Math.max(0, (this.sprintTime ?? 0) - dt * 0.5);
       // fell off a ledge
       if (!this.grounded && this.airTime > 0.2) { this.mode = 'air'; A.enter(A.oneShot('air', 'Jump_Loop', { loop: true }), 0.3); }
       this.idleExtras(dt);
