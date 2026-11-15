@@ -5,26 +5,27 @@
 // each real face outline is then compared between the source frame and the finished picture: a pixel that is
 // unchanged is a pixel of real face that was shown.
 //
-//   node tests/leak.mjs <video> <out folder> [fps=12] [stride=1] [pose=auto|always] [mask=satyr] [maxFrames]
+//   node tests/leak.mjs <video> <out folder> [fps=12] [stride=1] [pose=auto|always] [mask=satyr] [people=1] [strict=off|on] [maxFrames]
 //
 // stride > 1 skips source frames, as a slow computer would: harder tracking, same promise.
+// EVERY=10 in the environment also saves a picture of every tenth frame, whatever its state.
 // Needs "npm run build" and "npm run preview" (port 5421).
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 const { chromium } = createRequire(import.meta.url)('playwright');
 
-const [video, outDir, fps = '12', stride = '1', pose = 'auto', mask = 'satyr', maxFrames = '100000'] = process.argv.slice(2);
+const [video, outDir, fps = '12', stride = '1', pose = 'auto', mask = 'satyr', people = '1', strict = 'off', maxFrames = '100000'] = process.argv.slice(2);
 await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto('http://127.0.0.1:5421/?delegate=cpu');
+await page.goto(`http://127.0.0.1:5421/?delegate=cpu${process.env.POSE ? `&pose=${process.env.POSE}` : ''}`);
 await page.waitForFunction(() => window.__maskLayer, null, { timeout: 120000 });
 await page.evaluate((id) => window.__maskLayer.selectMask(id), mask);
 await page.setInputFiles('#file-input', video);
 await page.waitForFunction(() => window.__maskLayer.state.kind === 'file', null, { timeout: 30000 });
 
-const result = await page.evaluate(async ({ fps, stride, pose, maxFrames }) => {
+const result = await page.evaluate(async ({ fps, stride, pose, people, strict, maxFrames, every }) => {
   const { stage, tracker, state, createLandmarkers, FACE_OVAL } = window.__maskLayer;
   const v = document.getElementById('video');
   v.pause();
@@ -32,7 +33,10 @@ const result = await page.evaluate(async ({ fps, stride, pose, maxFrames }) => {
   state.manual = true;
   tracker.reset();
   tracker.poseMode = pose;
-  Object.assign(stage.settings, { underlay: 'solid', underlayColor: '#ff00ff', strict: false, mirror: false, look: 'none' });
+  await tracker.setMaxPeople(people);
+  // strict off measures the masks and patches on their own; strict on is the app as it ships
+  Object.assign(stage.settings, { underlay: 'solid', underlayColor: '#ff00ff', strict, mirror: false, look: 'none' });
+  tracker.failClosed = strict;
   const truth = await createLandmarkers({ maxPeople: 4, delegate: 'CPU', runningMode: 'IMAGE' });
   const seek = (t) => new Promise((r) => { v.addEventListener('seeked', r, { once: true }); v.currentTime = t; });
   const w = v.videoWidth, h = v.videoHeight;
@@ -69,16 +73,16 @@ const result = await page.evaluate(async ({ fps, stride, pose, maxFrames }) => {
       if (inside) worst = Math.max(worst, same / inside);
     }
     const states = tracks.map((t) => t.state);
-    frames.push({ i, states, real: real.length, shown: Number(worst.toFixed(4)) });
+    frames.push({ i, states, real: real.length, shown: worst, hidden: stage.report.hidden });
     // keep pictures of the frames worth a human look: anything shown, and a sample of the frames with no face lock
     const odd = worst > 0.002 || states.some((s) => s !== 'face') || (real.length === 0 && states.length === 0);
-    if (shots.length < 60 && ((worst > 0.002) || (odd && n - lastShot >= 4))) {
+    if (shots.length < 90 && ((worst > 0.002) || (odd && n - lastShot >= 4) || (every && n % every === 0))) {
       lastShot = n;
       shots.push({ i, states: states.join('+') || 'none', shown: worst, url: stage.out.toDataURL('image/jpeg', 0.8) });
     }
   }
   return { frames, shots, w, h, total };
-}, { fps: Number(fps), stride: Number(stride), pose, maxFrames: Number(maxFrames) });
+}, { fps: Number(fps), stride: Number(stride), pose, people: Number(people), strict: strict === 'on', maxFrames: Number(maxFrames), every: Number(process.env.EVERY || 0) });
 
 for (const s of result.shots) {
   await writeFile(`${outDir}/f${String(s.i).padStart(4, '0')}-${s.states}${s.shown > 0.002 ? '-SHOWN' : ''}.jpg`, Buffer.from(s.url.split(',')[1], 'base64'));
@@ -86,18 +90,19 @@ for (const s of result.shots) {
 const f = result.frames;
 const count = (fn) => f.filter(fn).length;
 const summary = {
-  video, fps: Number(fps), stride: Number(stride), pose, frames: f.length,
+  video, fps: Number(fps), stride: Number(stride), pose, people: Number(people), strict, frames: f.length,
   faceLocked: count((x) => x.states.includes('face')),
   bodyFollowed: count((x) => x.states.includes('body') && !x.states.includes('face')),
   holding: count((x) => x.states.includes('hold') && !x.states.includes('face') && !x.states.includes('body')),
   noMask: count((x) => x.states.length === 0),
+  wholePictureHidden: count((x) => x.hidden),
   framesWithARealFaceFound: count((x) => x.real > 0),
   framesWhereRealFaceWasShown: count((x) => x.shown > 0.002),
-  worstShownFraction: Math.max(0, ...f.map((x) => x.shown)),
+  worstShownFraction: Number(Math.max(0, ...f.map((x) => x.shown)).toFixed(4)),
   realFaceButNoMask: f.filter((x) => x.real > 0 && x.states.length === 0).map((x) => x.i),
   // a mask that goes away and comes back within two seconds was dropped, not finished with
   maskDropouts: f.filter((x, n) => x.states.length === 0 && f.slice(Math.max(0, n - 24), n).some((y) => y.states.length) && f.slice(n + 1, n + 25).some((y) => y.states.length)).map((x) => x.i),
-  shownFrames: f.filter((x) => x.shown > 0.002).map((x) => [x.i, x.shown, x.states.join('+')]),
+  shownFrames: f.filter((x) => x.shown > 0.002).map((x) => [x.i, Number(x.shown.toFixed(4)), x.states.join('+')]),
 };
 await writeFile(`${outDir}/frames.json`, JSON.stringify(f));
 await writeFile(`${outDir}/summary.json`, JSON.stringify(summary, null, 2));

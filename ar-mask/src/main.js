@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import './styles.css';
 import { createLandmarkers } from './tracking/landmarkers.js';
-import { HeadTracker, FACE, BODY, HOLD } from './tracking/headTracker.js';
+import { HeadTracker, BODY, HOLD } from './tracking/headTracker.js';
 import { CANON, FACE_OVAL } from './tracking/canonical.js';
 import { Stage, IDENTITY_FIT } from './render/stage.js';
 import { satyr } from './masks/satyr.js';
@@ -364,7 +364,7 @@ async function runExport() {
     els.saveNote.textContent = `Saved ${res.filename}: ${res.frames} frames in ${secs} s, every one masked before it was written.`
       + (body ? ` On ${body} the face could not be read and the mask followed the head from the body.` : '')
       + (held ? ` On ${held} the head was lost and the whole picture was hidden.` : '')
-      + (els.keepAudio.checked && !res.audioKept ? ' The sound could not be carried into this file format.' : '');
+      + (els.keepAudio.checked && res.hadAudio && !res.audioKept ? ' The sound could not be carried into this file format.' : '');
     window.__lastExport = res;
   } catch (err) {
     els.saveNote.textContent = exportAbort.signal.aborted ? 'Export cancelled.' : `Export failed: ${err.message}`;
@@ -434,7 +434,6 @@ function endCalibration(apply) {
   if (apply && calibSlot) {
     calibSlot.root.updateMatrixWorld(true);
     const toMask = new THREE.Matrix4().copy(calibSlot.fit.matrixWorld).invert();
-    const toHead = new THREE.Matrix4().copy(calibSlot.root.matrix).invert();
     const p = {}, q = {};
     for (const key of ANCHOR_KEYS) {
       const a = anchorAt[key];
@@ -448,7 +447,6 @@ function endCalibration(apply) {
       })();
       p[key] = world.clone().applyMatrix4(toMask); // the mask's own feature, before any fit
       q[key] = new THREE.Vector3(...CANON[key]); // where that feature is on a real face
-      void toHead;
     }
     // New fit = offset + R * (scale * stretch) * p. Keep the user's rotation and stretch; solve size and offset.
     const fit = currentFit();
@@ -515,6 +513,7 @@ function bindSetting(el, key, read = (e) => e.value) {
 bindSetting(els.underlay, 'underlay');
 bindSetting(els.margin, 'margin', (e) => Number(e.value));
 bindSetting(els.strict, 'strict', (e) => e.checked);
+els.strict.addEventListener('input', () => { if (tracker) tracker.failClosed = els.strict.checked; });
 bindSetting(els.look, 'look');
 bindSetting(els.mirror, 'mirror', (e) => e.checked);
 bindSetting(els.guide, 'showGuide', (e) => e.checked);
@@ -603,10 +602,13 @@ async function init() {
   selectMask(currentMask().id);
 
   try {
-    const delegate = new URLSearchParams(location.search).get('delegate') === 'cpu' ? 'CPU' : 'GPU';
-    const lm = await createLandmarkers({ maxPeople: prefs.people, delegate });
+    // ?delegate=cpu and ?pose=lite are for testing and for slow machines
+    const query = new URLSearchParams(location.search);
+    const delegate = query.get('delegate') === 'cpu' ? 'CPU' : 'GPU';
+    const lm = await createLandmarkers({ maxPeople: prefs.people, delegate, pose: query.get('pose') === 'lite' ? 'lite' : 'full' });
     tracker = new HeadTracker(lm);
     tracker.maxPeople = prefs.people;
+    tracker.failClosed = prefs.strict;
     els.engine.textContent = `Tracker: MediaPipe on ${lm.delegate}. Models: ${lm.localModels ? 'served from this app' : 'fetched from storage.googleapis.com (run “npm run assets” to keep them local)'}.`;
   } catch (err) {
     console.error(err);

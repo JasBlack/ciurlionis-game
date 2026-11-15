@@ -12,7 +12,7 @@ const R = [10, 13, 12]; // its radii
 const D2R = Math.PI / 180;
 
 const col = (hex) => new THREE.Color(hex);
-const SKIN = col(0x7f86ea), SKIN_LIGHT = col(0xaab2f7), HAIR = col(0x33283a), HAIR_HI = col(0x5b4a68);
+const SKIN = col(0x7f86ea), SKIN_LIGHT = col(0xaab2f7), HAIR = col(0x231a2b), HAIR_HI = col(0x47385c);
 const CYAN = col(0x55e8d6), YELLOW = col(0xf4ea62), ORANGE = col(0xff9638);
 const PEARL = col(0xefeafc), LIME = col(0xb6f074), PINK = col(0xf279c2), TEAL = col(0x52dccb), VIOLET = col(0x8f6fe0);
 

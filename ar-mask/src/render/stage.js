@@ -99,6 +99,7 @@ export class Stage {
     for (const slot of this.slots.values()) this._dropSlot(slot);
     this.slots.clear();
     this.maskDef = def;
+    this._maskBox = null;
   }
 
   setFit(fit) {
@@ -226,7 +227,7 @@ export class Stage {
     }
     // no face to outline: a generous oval where the head is, wider the longer it has gone unseen
     const grow = t.state === HOLD ? Math.min(2.2, 1 + t.heldMs / 600) : 1;
-    const rx = 0.5 * t.sizePx * 1.5 * m * grow;
+    const rx = 0.5 * t.sizePx * 1.65 * m * grow;
     const ry = rx * 1.25;
     octx.ellipse(t.cx, t.cy, rx, ry, 0, 0, Math.PI * 2);
     return { x: t.cx - rx, y: t.cy - ry, w: rx * 2, h: ry * 2, size: t.sizePx };
@@ -302,16 +303,20 @@ export class Stage {
   /** Does the fitted mask reach round a real head? A list of the sides where it falls short. */
   coverageGaps() {
     if (!this.maskDef) return [];
-    const probe = this.maskDef.create();
-    const holder = new THREE.Group();
-    holder.add(probe.object);
+    if (!this._maskBox) {
+      // the mask's own extent, measured once per mask
+      const probe = this.maskDef.create();
+      probe.object.updateMatrixWorld(true);
+      this._maskBox = new THREE.Box3().setFromObject(probe.object);
+      probe.dispose?.();
+    }
     const f = this.fit, d = Math.PI / 180;
-    holder.position.set(f.x, f.y, f.z);
-    holder.rotation.set(f.pitch * d, f.yaw * d, f.roll * d, 'YXZ');
-    holder.scale.set(f.scale * f.sx, f.scale * f.sy, f.scale * f.sz);
-    holder.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(holder);
-    probe.dispose?.();
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(f.x, f.y, f.z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(f.pitch * d, f.yaw * d, f.roll * d, 'YXZ')),
+      new THREE.Vector3(f.scale * f.sx, f.scale * f.sy, f.scale * f.sz),
+    );
+    const box = this._maskBox.clone().applyMatrix4(m);
     const [cx, cy, cz] = HEAD_PROXY.center;
     const [rx, ry, rz] = HEAD_PROXY.radii;
     const gaps = [];

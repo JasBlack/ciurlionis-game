@@ -5,7 +5,8 @@ import { FilesetResolver, FaceLandmarker, PoseLandmarker } from '@mediapipe/task
 const REMOTE = 'https://storage.googleapis.com/mediapipe-models/';
 const MODELS = {
   face: ['models/face_landmarker.task', `${REMOTE}face_landmarker/face_landmarker/float16/1/face_landmarker.task`],
-  pose: ['models/pose_landmarker_lite.task', `${REMOTE}pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`],
+  pose: ['models/pose_landmarker_full.task', `${REMOTE}pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task`],
+  poseLite: ['models/pose_landmarker_lite.task', `${REMOTE}pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`],
 };
 
 async function modelUrl([local, remote]) {
@@ -26,12 +27,12 @@ function blankCanvas() {
 }
 
 /**
- * @param {{ maxPeople?: number, delegate?: 'GPU' | 'CPU', runningMode?: 'VIDEO' | 'IMAGE' }} opts
- * @returns {Promise<{ face: FaceLandmarker, pose: PoseLandmarker, delegate: string, localModels: boolean }>}
+ * @param {{ maxPeople?: number, delegate?: 'GPU' | 'CPU', runningMode?: 'VIDEO' | 'IMAGE', pose?: 'full' | 'lite' }} opts
+ * @returns {Promise<{ face: FaceLandmarker, pose: PoseLandmarker, zoom: FaceLandmarker, delegate: string, localModels: boolean }>}
  */
-export async function createLandmarkers({ maxPeople = 1, delegate = 'GPU', runningMode = 'VIDEO' } = {}) {
+export async function createLandmarkers({ maxPeople = 1, delegate = 'GPU', runningMode = 'VIDEO', pose = 'full' } = {}) {
   const fileset = await FilesetResolver.forVisionTasks(new URL('mediapipe/wasm', document.baseURI).href);
-  const [faceModel, poseModel] = await Promise.all([modelUrl(MODELS.face), modelUrl(MODELS.pose)]);
+  const [faceModel, poseModel] = await Promise.all([modelUrl(MODELS.face), modelUrl(pose === 'lite' ? MODELS.poseLite : MODELS.pose)]);
 
   const build = async (which) => {
     // Low thresholds on purpose: a shaky lock on a turned head is better than no lock, because the
@@ -46,18 +47,29 @@ export async function createLandmarkers({ maxPeople = 1, delegate = 'GPU', runni
       minFacePresenceConfidence: 0.3,
       minTrackingConfidence: 0.3,
     });
-    const pose = await PoseLandmarker.createFromOptions(fileset, {
+    const body = await PoseLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: poseModel.url, delegate: which },
       runningMode,
       numPoses: maxPeople,
-      minPoseDetectionConfidence: 0.4,
-      minPosePresenceConfidence: 0.4,
-      minTrackingConfidence: 0.4,
+      minPoseDetectionConfidence: 0.3,
+      minPosePresenceConfidence: 0.3,
+      minTrackingConfidence: 0.3,
+    });
+    // A second face landmarker with no memory, for looking closely at one head at a time (see HeadTracker._zoom).
+    const zoom = await FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: faceModel.url, delegate: which },
+      runningMode: 'IMAGE',
+      numFaces: 1,
+      outputFaceBlendshapes: true,
+      outputFacialTransformationMatrixes: true,
+      minFaceDetectionConfidence: 0.3,
+      minFacePresenceConfidence: 0.3,
     });
     // One real inference each, so a graphics delegate that loads but cannot run is found out here.
     const probe = blankCanvas();
-    if (runningMode === 'VIDEO') { face.detectForVideo(probe, 1); pose.detectForVideo(probe, 1); } else { face.detect(probe); pose.detect(probe); }
-    return { face, pose };
+    if (runningMode === 'VIDEO') { face.detectForVideo(probe, 1); body.detectForVideo(probe, 1); } else { face.detect(probe); body.detect(probe); }
+    zoom.detect(probe);
+    return { face, pose: body, zoom };
   };
 
   let made;

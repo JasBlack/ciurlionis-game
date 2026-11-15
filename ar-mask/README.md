@@ -22,7 +22,7 @@ npm run dev
 ```
 
 Then open `http://localhost:5420` in Chrome or Edge. `npm install` also copies the tracker's runtime out of
-`node_modules` and downloads its two model files (about 10 MB) into `public/`, once.
+`node_modules` and downloads its two model files (about 13 MB) into `public/`, once.
 
 `npm run build` writes a static site to `dist/` that can be served from any folder of any web server. The camera
 needs `https://` or `localhost`.
@@ -41,7 +41,7 @@ needs `https://` or `localhost`.
 
 ## Why the mask does not flicker off
 
-Filter apps lose the face when you turn, and for the frames it takes to find you again the mask is gone. Four
+Filter apps lose the face when you turn, and for the frames it takes to find you again the mask is gone. Five
 things prevent that here.
 
 1. **A frame is never shown before its mask.** Each video frame is copied once. The tracker reads that copy and
@@ -51,19 +51,28 @@ things prevent that here.
 2. **A second tracker takes over when the face cannot be read.** In profile or turned away there is no face mesh
    to find. The body-pose tracker still knows where the nose, ears and shoulders are, and the mask follows those
    (state "Following head from body").
-3. **Losing track is not a reason to remove a mask.** With no evidence at all the mask coasts briefly on its last
-   velocity and then stays where it was. A head is let go only after 1.5 s with nothing, or sooner when it was last
-   seen leaving the picture or the body tracker reports the frame empty.
-4. **When it is blind, it hides everything.** With "Hide the whole picture if a head is lost" on (the default), any
-   frame in which a head that was just there cannot be located is pixelated from edge to edge.
+3. **Small faces are looked at again, enlarged.** The face tracker cannot see a face much smaller than a fifth
+   of the frame. For every head it has not locked, the app crops in on that head and runs the face mesh on the
+   enlarged crop, so a face across a room still gets a full lock, with expression.
+4. **Losing track is not a reason to remove a mask.** With no evidence at all the mask coasts briefly on its last
+   velocity and then stays where it was. A head is let go when it was last seen leaving the picture, or when the
+   body tracker reports the picture empty of people; otherwise it is kept.
+5. **When it is blind, it hides everything.** With "Hide the whole picture if a head is lost" on (the default), any
+   frame in which a head that was just there cannot be located is pixelated from edge to edge, and it stays that
+   way for as long as anybody is still in the picture, because "not detected" is not "not there". With it off,
+   a lost head keeps its mask and a widening patch for 1.5 s and is then let go.
 
 The masks are also closed shells larger than a real head, so there is no angle from which the wearer shows past
 the edge.
 
 ### What it cannot promise
 
-- A face that has never been detected cannot be covered. Someone entering at the edge of the frame, very small in
-  the distance, or in near darkness may be visible for the frames before either tracker picks them up.
+- A face that has never been detected cannot be covered. Someone only a few pixels tall in the distance, entering
+  at the very edge of the frame, or in near darkness may be visible for the frames before either tracker picks
+  them up. In testing, people walking in from the far end of a corridor were uncovered until their heads were
+  about 10 pixels across.
+- More than one person works best when faces are visible: the body tracker tends to follow one body at a time,
+  so two people who both turn away at once will often trip the whole-picture hide.
 - It hides the head. Voice, body, clothes, tattoos, the room and the file's metadata still identify people. Turn
   off "Keep the sound when exporting" if your voice matters.
 - **Watch every export through once before publishing it.** The status line after an export says on how many
@@ -115,7 +124,7 @@ to look for how a mask is driven by expression.
 
 ```
 src/tracking/landmarkers.js   loads MediaPipe face + pose landmarkers from this app's own files
-src/tracking/headTracker.js   the three states (face / body / hold), matching, smoothing, when to let go
+src/tracking/headTracker.js   the three states (face / body / hold), the zoom pass, smoothing, when to let go
 src/tracking/canonical.js     the head space masks are built in (cm; +X wearer's left, +Y up, +Z out of the face)
 src/render/stage.js           frame copy -> privacy patch -> 3D masks -> finished picture
 src/masks/                    built-in masks and the .glb loader
@@ -135,9 +144,16 @@ npm run build && npm run preview
 ```
 
 ```bash
-node tests/leak.mjs path/to/video.webm test-out/run1 30
+node tests/leak.mjs path/to/video.mp4 test-out/run1 30
 ```
 
-The arguments are the video, an output folder, the video's frame rate, then optionally a stride (3 = use every
-third frame, as a slow computer would), `auto` or `always` for the body tracker, and a mask id. It needs
-Playwright with Chromium available to Node. Headless Chromium has no H.264, so give it WebM.
+The arguments are the video, an output folder and the video's frame rate; then, all optional and in this order, a
+stride (3 = use every third frame, as a slow computer would), `auto` or `always` for the body tracker, a mask id,
+the number of people to cover, and `on` to test with the whole-picture hide as shipped (`off`, the default, tests
+the masks and patches on their own). It saves a picture of every frame that was not face-locked, because the
+detector that judges the frames cannot see a face in profile either: those are for a person to look through.
+It needs Playwright with Chromium available to Node.
+
+The other scripts in `tests/` open a video and save pictures (`smoke.mjs`), run an export and save the file
+(`export.mjs`), drive the camera path with a fake camera (`camera.mjs`), and walk through importing a `.glb` and
+fitting it by points (`ui.mjs`, with `make-test-glb.mjs` to write a model to import).

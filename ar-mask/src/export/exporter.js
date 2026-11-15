@@ -38,7 +38,7 @@ const pause = () => new Promise((r) => setTimeout(r, 0));
  *   onProgress?: (fraction: number, frames: number) => void,
  *   signal?: AbortSignal,
  * }} o
- * @returns {Promise<{ blob: Blob, filename: string, frames: number, audioKept: boolean, codec: string, log: object[] }>}
+ * @returns {Promise<{ blob: Blob, filename: string, frames: number, hadAudio: boolean, audioKept: boolean, codec: string, log: object[] }>}
  */
 export async function exportFile(file, { tracker, stage, keepAudio = true, onProgress, signal }) {
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
@@ -93,12 +93,13 @@ export async function exportFile(file, { tracker, stage, keepAudio = true, onPro
     tracker.poseMode = prevMode;
     tracker.reset();
   }
+  const hadAudio = (await input.getPrimaryAudioTrack()) != null;
   const audioKept = keepAudio && conversion.utilizedTracks.some((t) => t.type === 'audio');
   const stem = file.name.replace(/\.[^.]+$/, '') || 'video';
   return {
     blob: new Blob([output.target.buffer], { type: format.mimeType }),
     filename: `${stem}-masked${format.fileExtension}`,
-    frames, audioKept, codec, log,
+    frames, hadAudio, audioKept, codec, log,
   };
 }
 

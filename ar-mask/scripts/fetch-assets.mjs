@@ -12,8 +12,8 @@ const modelsTo = join(root, 'public/models');
 const MODELS = {
   'face_landmarker.task':
     'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-  'pose_landmarker_lite.task':
-    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+  'pose_landmarker_full.task':
+    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
 };
 
 const exists = async (p) => { try { return (await stat(p)).size > 0; } catch { return false; } };

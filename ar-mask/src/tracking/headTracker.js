@@ -1,13 +1,15 @@
 // Follows each head in the picture and never lets go of one without evidence that it has left.
 //
 // A head is followed in one of three states:
-//   FACE  the face mesh is locked: exact pose and expression from 478 landmarks
+//   FACE  the face mesh is locked: exact pose and expression from 478 landmarks. A face too small or too far for
+//         the whole-picture tracker is looked for again in an enlarged crop round the head, so this holds at a distance
 //   BODY  the face cannot be read (profile, turned away, covered) but the body pose still shows where the head is:
 //         the mask follows the nose / ear / shoulder keypoints instead
 //   HOLD  nothing is seen this frame: the head coasts a moment on its last velocity, then stays put, still masked
 //
-// A head is dropped only after HOLD has lasted `holdMs`, or sooner when it was last seen leaving the picture or the
-// body tracker reports that nobody is there. It is never dropped because one frame, or ten, failed to track.
+// A head is let go when it was last seen leaving the picture, or when the body tracker reports the picture empty
+// of people. Otherwise it is kept: for `holdMs` normally, and with `failClosed` on, for as long as anybody is still
+// in the picture. It is never dropped because one frame, or ten, failed to track.
 import * as THREE from 'three';
 import { OneEuro } from './oneEuro.js';
 import { FOV_DEG, CANON, POSE } from './canonical.js';
@@ -33,6 +35,8 @@ const _prev = new THREE.Vector3();
 const _x = new THREE.Vector3();
 const _y = new THREE.Vector3();
 const _z = new THREE.Vector3();
+const _ray = new THREE.Quaternion();
+const _fwd = new THREE.Vector3(0, 0, -1);
 
 class Track {
   constructor(id, tMs) {
@@ -61,18 +65,30 @@ class Track {
 }
 
 export class HeadTracker {
-  constructor({ face, pose }) {
+  constructor({ face, pose, zoom }) {
     this.face = face;
     this.pose = pose;
+    this.zoom = zoom;
+    this.zoomCanvas = document.createElement('canvas');
+    this.zoomCanvas.width = this.zoomCanvas.height = 320;
+    this.zoomCtx = this.zoomCanvas.getContext('2d', { alpha: false });
     this.tracks = [];
     this.maxPeople = 1;
     /** How long a head stays masked with no evidence at all before it is given up, in ms. */
     this.holdMs = 1500;
     /** The same, when the body tracker ran and found nobody in the picture. */
     this.emptyHoldMs = 500;
+    /**
+     * Fail closed: a lost head is not given up on a timer while anybody is still in the picture, because "not
+     * detected" is not "not there". It is kept (and the stage hides the picture) until it is found again, leaves
+     * the frame, or the picture is empty of people. The caps below only stop a long video locking up for good.
+     */
+    this.failClosed = true;
+    this.closedHoldMs = 30000;
+    this.closedEmptyHoldMs = 2000;
     /** 'auto': the body tracker runs only when a face is missing. 'always': every frame (export). 'off'. */
     this.poseMode = 'auto';
-    this.stats = { faceMs: 0, poseMs: 0, ranPose: false };
+    this.stats = { faceMs: 0, poseMs: 0, ranPose: false, zooms: 0 };
     this._nextId = 1;
     this._ts = 10;
     this._lastT = null;
@@ -189,8 +205,26 @@ export class HeadTracker {
     }
 
     // ---- update every head
+    this.stats.zooms = 0;
+    const claimed = [...faceOf.values()];
     for (const t of this.tracks) {
-      const d = faceOf.get(t);
+      let d = faceOf.get(t);
+      let body = null;
+      if (!d) {
+        if (persons) {
+          let cost0 = 1.5;
+          for (const p of persons) {
+            if (p.used) continue;
+            const cost = Math.hypot(t.cx - p.cx, t.cy - p.cy) / Math.max(t.sizePx, p.size, 1);
+            if (cost < cost0) { cost0 = cost; body = p; }
+          }
+          if (body) body.used = true;
+        }
+        // look closer, where the body says the head is or where the head was last
+        const lostFor = body ? 0 : (tMs - t.lastSeen) / 1000;
+        d = this._zoomIn(image, body ?? { cx: t.cx, cy: t.cy, size: t.sizePx }, lostFor, w, h, f, claimed);
+        if (d) claimed.push(d);
+      }
       if (d) {
         this._measure(t, d, FACE, dt);
         t.landmarks = d.lm;
@@ -201,18 +235,9 @@ export class HeadTracker {
       }
       t.landmarks = null;
       relax(t.blend, dt);
-      let best = null;
-      if (persons) {
-        for (const p of persons) {
-          if (p.used) continue;
-          const cost = Math.hypot(t.cx - p.cx, t.cy - p.cy) / Math.max(t.sizePx, p.size, 1);
-          if (cost < 1.5 && (!best || cost < best.cost)) best = { p, cost };
-        }
-      }
-      if (best) {
-        best.p.used = true;
-        this._measure(t, this._bodyPose(t, best.p, w, h, f), BODY, dt);
-        t.cx = best.p.cx; t.cy = best.p.cy; t.sizePx = best.p.size;
+      if (body) {
+        this._measure(t, this._bodyPose(t, body, w, h, f), BODY, dt);
+        t.cx = body.cx; t.cy = body.cy; t.sizePx = body.size;
         t.lastSeen = tMs; t.heldMs = 0;
         continue;
       }
@@ -230,14 +255,47 @@ export class HeadTracker {
       t.nobodyThere = persons != null && persons.length === 0;
     }
 
+    // ---- a body nobody claimed and a head that is lost: the same person, further away than expected
+    if (persons) {
+      for (const p of persons) {
+        if (p.used) continue;
+        let lost = null, near = Infinity;
+        for (const t of this.tracks) {
+          if (t.state !== HOLD || t.reclaimed) continue;
+          // how far a head can have gone since it was lost: a head just lost is still where it was,
+          // and a body some way off is somebody else
+          const reach = Math.max(t.sizePx, p.size) * (1.5 + 4 * (t.heldMs / 1000));
+          const dist = Math.hypot(t.cx - p.cx, t.cy - p.cy);
+          if (dist < reach && dist < near) { near = dist; lost = t; }
+        }
+        if (!lost) continue;
+        p.used = true;
+        lost.reclaimed = true;
+        lost.snap = true;
+        this._measure(lost, this._bodyPose(lost, p, w, h, f), BODY, dt);
+        lost.cx = p.cx; lost.cy = p.cy; lost.sizePx = p.size;
+        lost.lastSeen = tMs; lost.heldMs = 0;
+      }
+      for (const t of this.tracks) t.reclaimed = false;
+    }
+
     // ---- a body with no head followed yet: somebody who came in turned away, or whose face never resolved
     if (persons) {
       for (const p of persons) {
-        if (p.used || p.vis < 0.5 || this.tracks.length >= this.maxPeople * 2) continue;
+        if (p.used || p.vis < 0.4 || this.tracks.length >= this.maxPeople * 2) continue;
         const t = new Track(this._nextId++, tMs);
         this.tracks.push(t);
         this._measure(t, this._bodyPose(t, p, w, h, f), BODY, dt);
         t.cx = p.cx; t.cy = p.cy; t.sizePx = p.size;
+        const d = this._zoomIn(image, p, 0, w, h, f, claimed);
+        if (d) {
+          claimed.push(d);
+          t.snap = true;
+          this._measure(t, d, FACE, dt);
+          t.landmarks = d.lm;
+          t.cx = d.cx; t.cy = d.cy; t.sizePx = d.size;
+          blendToward(t.blend, d.blend, dt);
+        }
       }
     }
 
@@ -246,10 +304,62 @@ export class HeadTracker {
       if (t.state !== HOLD) return true;
       const m = 0.25 * t.sizePx;
       const left = t.cx < -m || t.cx > w + m || t.cy < -m || t.cy > h + m;
-      const limit = left ? 200 : t.nobodyThere ? this.emptyHoldMs : this.holdMs;
+      const limit = left ? 200
+        : t.nobodyThere ? (this.failClosed ? this.closedEmptyHoldMs : this.emptyHoldMs)
+          : (this.failClosed ? this.closedHoldMs : this.holdMs);
       return t.heldMs <= limit;
     });
     return this.tracks;
+  }
+
+  /**
+   * Look for a face in an enlarged crop of the picture round one head. The whole-picture face tracker cannot see a
+   * face much smaller than a fifth of the frame; enlarged, the same face is found, with full pose and expression.
+   * @param {{ cx: number, cy: number, size: number }} at where the head is thought to be, in picture pixels
+   * @param {number} lostFor seconds since this head was last seen (the crop widens with it)
+   * @param {object[]} claimed faces already given to other heads this frame
+   */
+  _zoomIn(image, at, lostFor, w, h, f, claimed) {
+    if (!this.zoom || !(at.size > 4)) return null;
+    const side = Math.min(Math.max(at.size * (3.2 + 3 * Math.min(lostFor, 1.5)), 64), Math.min(w, h));
+    // a face that already fills a good part of the picture is the whole-picture tracker's to find
+    if (lostFor === 0 && at.size > 0.22 * Math.min(w, h)) return null;
+    const x0 = THREE.MathUtils.clamp(at.cx - side / 2, 0, w - side);
+    const y0 = THREE.MathUtils.clamp(at.cy - 0.05 * at.size - side / 2, 0, h - side);
+    const c = this.zoomCanvas;
+    this.zoomCtx.drawImage(image, x0, y0, side, side, 0, 0, c.width, c.height);
+    this.stats.zooms++;
+    const r = this.zoom.detect(c);
+    const lmc = r.faceLandmarks?.[0];
+    const mat = r.facialTransformationMatrixes?.[0];
+    if (!lmc || !mat || lmc.length < 468) return null;
+
+    // landmarks back into whole-picture coordinates
+    const lm = lmc.map((p) => ({ x: (x0 + p.x * side) / w, y: (y0 + p.y * side) / h, z: (p.z * side) / w }));
+    const a = lm[234], b = lm[454], t = lm[10], d = lm[152];
+    const cx = ((a.x + b.x + t.x + d.x) / 4) * w;
+    const cy = ((a.y + b.y + t.y + d.y) / 4) * h;
+    const size = Math.max(Math.hypot((a.x - b.x) * w, (a.y - b.y) * h), 0.85 * Math.hypot((t.x - d.x) * w, (t.y - d.y) * h));
+    // it must be this head, and not a neighbour's face that another head already has
+    const reach = Math.max(at.size, size) * (1.3 + 3 * Math.min(lostFor, 1.5));
+    if (Math.hypot(cx - at.cx, cy - at.cy) > reach) return null;
+    if (size < 0.35 * at.size || size > 3 * at.size) return null;
+    for (const o of claimed) {
+      if (Math.hypot(cx - o.cx, cy - o.cy) < 0.6 * Math.max(size, o.size)) return null;
+    }
+
+    // The pose was solved for a camera that sees only the crop. The same head in the whole picture's camera is
+    // further away by the ratio of the two picture heights, shifted to where the crop sits, and turned by the
+    // angle between the two lines of sight.
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    _m.fromArray(mat.data).decompose(pos, quat, _s);
+    if (!Number.isFinite(pos.x + pos.y + pos.z + quat.w) || pos.z > -1) return null;
+    const depth = -pos.z * (h / side);
+    pos.set(pos.x + ((x0 + side / 2 - w / 2) * depth) / f, pos.y - ((y0 + side / 2 - h / 2) * depth) / f, -depth);
+    _ray.setFromUnitVectors(_fwd, _v.copy(pos).normalize());
+    quat.premultiply(_ray);
+    return { lm, pos, quat, scale: (_s.x + _s.y + _s.z) / 3, cx, cy, size, blend: r.faceBlendshapes?.[0]?.categories ?? null, used: true, zoomed: true };
   }
 
   /** Head pose from body keypoints, at the depth this head was last known to be. */
