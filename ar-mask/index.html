@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mask Layer</title>
+    <meta name="description" content="Cover your face in live camera or recorded video with a tracked 3D mask. Everything runs in this browser; nothing is uploaded." />
+    <meta name="theme-color" content="#14111b" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314111b'/%3E%3Cellipse cx='16' cy='16' rx='9' ry='11' fill='%239aa2ff'/%3E%3Ccircle cx='12' cy='14' r='3' fill='%2314111b'/%3E%3Ccircle cx='20' cy='14' r='3' fill='%2314111b'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="bar">
+        <h1>Mask Layer</h1>
+        <p class="tag">Runs in this browser. Nothing is uploaded.</p>
+        <div class="chips">
+          <span class="chip" id="chip-state" data-state="idle">Loading tracker…</span>
+          <span class="chip mono" id="chip-perf" hidden></span>
+        </div>
+      </header>
+
+      <main>
+        <section class="stage" id="stage">
+          <canvas id="out" width="960" height="540" aria-label="Masked video"></canvas>
+
+          <div class="empty" id="empty">
+            <p class="empty-title">Start the camera, or drop a video here</p>
+            <p class="empty-sub">The mask is drawn on every frame before the frame is shown or saved.</p>
+            <div class="row">
+              <button class="btn primary" id="empty-camera" disabled>Start camera</button>
+              <button class="btn" id="empty-file" disabled>Open video…</button>
+            </div>
+          </div>
+
+          <div class="anchors" id="anchors" hidden>
+            <button class="anchor" data-key="rightEye" aria-label="Eye on the left of the picture"><span>eye</span></button>
+            <button class="anchor" data-key="leftEye" aria-label="Eye on the right of the picture"><span>eye</span></button>
+            <button class="anchor" data-key="mouth" aria-label="Mouth"><span>mouth</span></button>
+          </div>
+          <div class="calib-bar" id="calib-bar" hidden>
+            <p>The dots show where your own eyes and mouth sit behind the mask. Drag each onto that feature of the mask.</p>
+            <div class="row">
+              <button class="btn primary" id="calib-apply">Apply</button>
+              <button class="btn" id="calib-cancel">Cancel</button>
+            </div>
+          </div>
+
+          <div class="transport" id="transport" hidden>
+            <button class="btn icon" id="play" aria-label="Play or pause">❚❚</button>
+            <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the video" />
+            <span class="mono" id="time">0:00 / 0:00</span>
+            <button class="btn icon" id="sound" aria-label="Sound on or off" aria-pressed="false">Sound off</button>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <section class="group">
+            <h2>Source</h2>
+            <div class="row">
+              <button class="btn" id="camera" disabled>Start camera</button>
+              <button class="btn" id="file" disabled>Open video…</button>
+            </div>
+            <label class="field" id="camera-field" hidden>
+              <span>Camera</span>
+              <select id="camera-select"></select>
+            </label>
+            <label class="check"><input type="checkbox" id="mirror" /> <span>Mirror the picture</span></label>
+            <input type="file" id="file-input" accept="video/*" hidden />
+          </section>
+
+          <section class="group">
+            <h2>Mask</h2>
+            <div class="masks" id="masks" role="radiogroup" aria-label="Mask"></div>
+            <div class="row">
+              <button class="btn" id="import">Import .glb…</button>
+              <label class="check"><input type="checkbox" id="show-mask" checked /> <span>Show mask</span></label>
+            </div>
+            <input type="file" id="glb-input" accept=".glb,model/gltf-binary" hidden />
+            <p class="hint" id="mask-hint"></p>
+          </section>
+
+          <details class="group" id="fit-group">
+            <summary><h2>Fit</h2></summary>
+            <div class="sliders" id="sliders"></div>
+            <div class="row">
+              <button class="btn" id="fit-points">Fit by points…</button>
+              <button class="btn" id="fit-reset">Reset</button>
+            </div>
+            <label class="check"><input type="checkbox" id="guide" /> <span>Show the outline of a real head</span></label>
+            <p class="hint" id="coverage"></p>
+          </details>
+
+          <section class="group">
+            <h2>Privacy</h2>
+            <label class="field">
+              <span>Under the mask</span>
+              <select id="underlay">
+                <option value="pixelate">Pixelate the face</option>
+                <option value="solid">Paint it out</option>
+                <option value="blur">Blur the face</option>
+                <option value="off">Nothing (mask only)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Patch size</span>
+              <input type="range" id="margin" min="0.85" max="1.7" step="0.05" value="1" />
+            </label>
+            <label class="check"><input type="checkbox" id="strict" checked /> <span>Hide the whole picture if a head is lost</span></label>
+            <label class="field">
+              <span>People to cover</span>
+              <select id="people">
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="group">
+            <h2>Look</h2>
+            <label class="field">
+              <span>Picture</span>
+              <select id="look">
+                <option value="none">As filmed</option>
+                <option value="mono">Mono</option>
+                <option value="noir">Noir</option>
+                <option value="warm">Warm</option>
+                <option value="cool">Cool</option>
+                <option value="vivid">Vivid</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="group">
+            <h2>Save</h2>
+            <div class="row">
+              <button class="btn" id="record" disabled>Record</button>
+              <button class="btn primary" id="export" disabled>Export video</button>
+            </div>
+            <label class="check"><input type="checkbox" id="keep-audio" checked /> <span>Keep the sound when exporting</span></label>
+            <div class="progress" id="progress" hidden>
+              <div class="progress-bar"><i id="progress-fill"></i></div>
+              <span class="mono" id="progress-text">0%</span>
+              <button class="btn small" id="export-cancel">Cancel</button>
+            </div>
+            <p class="hint" id="save-note">Export reads a video file frame by frame, so every frame is masked however slow the computer is.</p>
+          </section>
+
+          <details class="group">
+            <summary><h2>Details</h2></summary>
+            <label class="check"><input type="checkbox" id="landmarks" /> <span>Show tracking points</span></label>
+            <p class="hint mono" id="engine"></p>
+          </details>
+        </aside>
+      </main>
+    </div>
+
+    <video id="video" playsinline muted hidden></video>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "ar-mask",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/fetch-assets.mjs",
+    "assets": "node scripts/fetch-assets.mjs",
+    "dev": "vite --port 5420 --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --port 5421 --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.1",
+    "mediabunny": "1.66.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.5"
+  },
+  "license": "MIT"
+}

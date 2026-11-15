@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# copied / downloaded by scripts/fetch-assets.mjs on npm install
+public/mediapipe/
+public/models/
+test-media/
+test-out/
+*.log
+.DS_Store
