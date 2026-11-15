@@ -1,166 +1,220 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mask Layer</title>
-    <meta name="description" content="Cover your face in live camera or recorded video with a tracked 3D mask. Everything runs in this browser; nothing is uploaded." />
-    <meta name="theme-color" content="#14111b" />
-    <link rel="canonical" href="https://mask.jas.black/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="JAS.BLACK" />
-    <meta property="og:title" content="Mask Layer" />
-    <meta property="og:description" content="Cover your face in live camera or recorded video with a tracked 3D mask. Runs in the browser; nothing is uploaded." />
-    <meta property="og:url" content="https://mask.jas.black/" />
-    <meta name="twitter:card" content="summary" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314111b'/%3E%3Cellipse cx='16' cy='16' rx='9' ry='11' fill='%239aa2ff'/%3E%3Ccircle cx='12' cy='14' r='3' fill='%2314111b'/%3E%3Ccircle cx='20' cy='14' r='3' fill='%2314111b'/%3E%3C/svg%3E" />
-  </head>
-  <body>
-    <div id="app">
-      <header class="bar">
-        <h1>Mask Layer</h1>
-        <p class="tag">Runs in this browser. Nothing is uploaded.</p>
-        <div class="chips">
-          <span class="chip" id="chip-state" data-state="idle">Loading tracker…</span>
-          <span class="chip mono" id="chip-perf" hidden></span>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mask Layer - JAS.BLACK</title>
+<meta name="description" content="Cover your face in any video or live feed with a tracked 3D mask.">
+<meta name="theme-color" content="#121314">
+<link rel="canonical" href="https://mask.jas.black/">
+
+<!-- icons: dark rounded tile, a purple head behind a green mask -->
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="manifest" href="./site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Mask Layer">
+
+<!-- link preview (Open Graph / X): 1200 x 630 card -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JAS.BLACK">
+<meta property="og:title" content="Mask Layer - JAS.BLACK">
+<meta property="og:description" content="Cover your face in any video or live feed with a tracked 3D mask.">
+<meta property="og:url" content="https://mask.jas.black/">
+<meta property="og:image" content="https://mask.jas.black/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Mask: cover your face in any video or live feed with a tracked 3D mask. A horned, bearded mask with large dark eyes, turned to one side.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mask Layer - JAS.BLACK">
+<meta name="twitter:description" content="Cover your face in any video or live feed with a tracked 3D mask.">
+<meta name="twitter:image" content="https://mask.jas.black/og.jpg">
+</head>
+<!-- A console-layout JAS.BLACK tool: title, easy | console and status lights, transport, view keys;
+     numbered steps on the left, the stage, every control on the right. -->
+<body data-ui="dark" data-tool="mask" data-version="0.2.0" data-mode="easy">
+
+<header class="topbar">
+  <div class="hl">
+    <div class="brandbox on-grid"><span class="brand">MASK LAYER</span><span class="brand-ver"></span></div>
+    <div class="seg" role="group" aria-label="Controls" id="mode">
+      <button type="button" aria-pressed="true" data-value="easy" title="the guided steps">easy</button>
+      <button type="button" aria-pressed="false" data-value="console" title="every control">console</button>
+    </div>
+    <div class="status on-grid" aria-label="Status lights">
+      <span title="a camera or video is running"><i class="led" id="led-live"></i>live</span>
+      <span title="green: face locked. violet: following the head from the body"><i class="led" id="led-lock"></i>lock</span>
+      <span title="recording"><i class="led rec" id="led-rec"></i>rec</span>
+    </div>
+  </div>
+  <div class="transport">
+    <button type="button" class="key" id="pause" title="Pause / resume (Space)" disabled>Ⅱ pause</button>
+    <button type="button" class="key primary" data-do="export" title="Write the video with a mask on every frame (E)" disabled>export video</button>
+    <button type="button" class="key ink" data-do="record" title="Record what you see (R)" disabled><span class="dot"></span> <span class="label">record</span></button>
+  </div>
+  <div class="hr">
+    <button type="button" class="key" id="guide-key" aria-expanded="false">guide</button>
+    <button type="button" class="key icon" data-action="fullscreen" title="Full screen (F)" aria-label="Full screen">⛶</button>
+    <button type="button" class="key icon" data-action="theme" title="Light / dark" aria-label="Switch light or dark">◐</button>
+  </div>
+</header>
+
+<main class="console">
+  <aside class="column" id="steps">
+    <section class="panel">
+      <div class="panel-title"><b><i>1</i> source</b><span>what to cover</span></div>
+      <button type="button" class="key primary wide" data-do="open" disabled>open video</button>
+      <div class="keys-row">
+        <button type="button" class="key" id="camera" disabled>camera</button>
+        <button type="button" class="key toggle" id="mirror" aria-pressed="false" title="Flip the picture left to right (M)">mirror</button>
+      </div>
+      <select id="camera-select" aria-label="Which camera" hidden></select>
+      <p class="hint">or drop a video anywhere. nothing is uploaded</p>
+      <input type="file" id="file-input" accept="video/*" hidden>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><b><i>2</i> mask</b><span>pick one</span></div>
+      <div class="tiles" id="masks" role="radiogroup" aria-label="Mask"></div>
+      <div class="keys-row">
+        <button type="button" class="key" id="import">import .glb</button>
+        <button type="button" class="key toggle" id="show-mask" aria-pressed="true" title="Off leaves only the cover under the mask">show mask</button>
+      </div>
+      <p class="hint" id="mask-hint">or drop a .glb head model anywhere</p>
+      <input type="file" id="glb-input" accept=".glb,model/gltf-binary" hidden>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><b><i>3</i> cover</b><span>under the mask</span></div>
+      <div class="seg" role="group" aria-label="What hides the face under the mask" id="underlay">
+        <button type="button" aria-pressed="true" data-value="pixelate">pixels</button>
+        <button type="button" aria-pressed="false" data-value="solid">paint</button>
+        <button type="button" aria-pressed="false" data-value="blur">blur</button>
+        <button type="button" aria-pressed="false" data-value="off">none</button>
+      </div>
+      <div class="keys-row">
+        <button type="button" class="key toggle" id="strict" aria-pressed="true" title="If a head that was just there cannot be found, hide everything until it is">hide picture if a head is lost</button>
+      </div>
+      <p class="hint">the face is hidden under the mask too, so a gap never shows skin</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><b><i>4</i> save</b><span>keep it</span></div>
+      <button type="button" class="key primary wide" data-do="export" disabled>export video</button>
+      <div class="keys-row">
+        <button type="button" class="key ink" data-do="record" disabled><span class="dot"></span> <span class="label">record</span></button>
+        <button type="button" class="key toggle" id="keep-audio" aria-pressed="true" title="Carry the video's sound into the export">keep sound</button>
+      </div>
+      <div class="keys-row" id="export-busy" hidden>
+        <button type="button" class="key" id="export-cancel">cancel export</button>
+      </div>
+      <div class="meter" id="meter" hidden><i id="meter-fill"></i></div>
+      <p class="hint" id="save-note">export reads the file frame by frame: every frame gets its mask, however slow the computer. record saves what you see, without sound</p>
+    </section>
+  </aside>
+
+  <section class="stage">
+    <div class="monitor" id="monitor">
+      <canvas id="out" width="960" height="540" aria-label="Masked video" hidden></canvas>
+
+      <section class="panel stage-card" id="empty">
+        <p>open a video or start the camera</p>
+        <div class="keys-row">
+          <button type="button" class="key primary" data-do="open" disabled>open video</button>
+          <button type="button" class="key" id="empty-camera" disabled>camera</button>
         </div>
-      </header>
+        <p class="hint">a mask is on every frame before it is shown or saved</p>
+      </section>
 
-      <main>
-        <section class="stage" id="stage">
-          <canvas id="out" width="960" height="540" aria-label="Masked video"></canvas>
+      <div class="pins" id="pins" hidden>
+        <button type="button" class="pin" data-key="rightEye" aria-label="Eye on the left of the picture"><span>eye</span></button>
+        <button type="button" class="pin" data-key="leftEye" aria-label="Eye on the right of the picture"><span>eye</span></button>
+        <button type="button" class="pin" data-key="mouth" aria-label="Mouth"><span>mouth</span></button>
+      </div>
+      <section class="panel fitbar" id="fitbar" hidden>
+        <p>the pins are where your own eyes and mouth sit behind the mask. drag each onto that part of the mask</p>
+        <div class="keys-row">
+          <button type="button" class="key primary" id="fit-apply">apply</button>
+          <button type="button" class="key" id="fit-cancel">cancel</button>
+        </div>
+      </section>
 
-          <div class="empty" id="empty">
-            <p class="empty-title">Start the camera, or drop a video here</p>
-            <p class="empty-sub">The mask is drawn on every frame before the frame is shown or saved.</p>
-            <div class="row">
-              <button class="btn primary" id="empty-camera" disabled>Start camera</button>
-              <button class="btn" id="empty-file" disabled>Open video…</button>
-            </div>
-          </div>
-
-          <div class="anchors" id="anchors" hidden>
-            <button class="anchor" data-key="rightEye" aria-label="Eye on the left of the picture"><span>eye</span></button>
-            <button class="anchor" data-key="leftEye" aria-label="Eye on the right of the picture"><span>eye</span></button>
-            <button class="anchor" data-key="mouth" aria-label="Mouth"><span>mouth</span></button>
-          </div>
-          <div class="calib-bar" id="calib-bar" hidden>
-            <p>The dots show where your own eyes and mouth sit behind the mask. Drag each onto that feature of the mask.</p>
-            <div class="row">
-              <button class="btn primary" id="calib-apply">Apply</button>
-              <button class="btn" id="calib-cancel">Cancel</button>
-            </div>
-          </div>
-
-          <div class="transport" id="transport" hidden>
-            <button class="btn icon" id="play" aria-label="Play or pause">❚❚</button>
-            <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the video" />
-            <span class="mono" id="time">0:00 / 0:00</span>
-            <button class="btn icon" id="sound" aria-label="Sound on or off" aria-pressed="false">Sound off</button>
-          </div>
-        </section>
-
-        <aside class="panel">
-          <section class="group">
-            <h2>Source</h2>
-            <div class="row">
-              <button class="btn" id="camera" disabled>Start camera</button>
-              <button class="btn" id="file" disabled>Open video…</button>
-            </div>
-            <label class="field" id="camera-field" hidden>
-              <span>Camera</span>
-              <select id="camera-select"></select>
-            </label>
-            <label class="check"><input type="checkbox" id="mirror" /> <span>Mirror the picture</span></label>
-            <input type="file" id="file-input" accept="video/*" hidden />
-          </section>
-
-          <section class="group">
-            <h2>Mask</h2>
-            <div class="masks" id="masks" role="radiogroup" aria-label="Mask"></div>
-            <div class="row">
-              <button class="btn" id="import">Import .glb…</button>
-              <label class="check"><input type="checkbox" id="show-mask" checked /> <span>Show mask</span></label>
-            </div>
-            <input type="file" id="glb-input" accept=".glb,model/gltf-binary" hidden />
-            <p class="hint" id="mask-hint"></p>
-          </section>
-
-          <details class="group" id="fit-group">
-            <summary><h2>Fit</h2></summary>
-            <div class="sliders" id="sliders"></div>
-            <div class="row">
-              <button class="btn" id="fit-points">Fit by points…</button>
-              <button class="btn" id="fit-reset">Reset</button>
-            </div>
-            <label class="check"><input type="checkbox" id="guide" /> <span>Show the outline of a real head</span></label>
-            <p class="hint" id="coverage"></p>
-          </details>
-
-          <section class="group">
-            <h2>Privacy</h2>
-            <label class="field">
-              <span>Under the mask</span>
-              <select id="underlay">
-                <option value="pixelate">Pixelate the face</option>
-                <option value="solid">Paint it out</option>
-                <option value="blur">Blur the face</option>
-                <option value="off">Nothing (mask only)</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Patch size</span>
-              <input type="range" id="margin" min="0.85" max="1.7" step="0.05" value="1" />
-            </label>
-            <label class="check"><input type="checkbox" id="strict" checked /> <span>Hide the whole picture if a head is lost</span></label>
-            <label class="field">
-              <span>People to cover</span>
-              <select id="people">
-                <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
-              </select>
-            </label>
-          </section>
-
-          <section class="group">
-            <h2>Look</h2>
-            <label class="field">
-              <span>Picture</span>
-              <select id="look">
-                <option value="none">As filmed</option>
-                <option value="mono">Mono</option>
-                <option value="noir">Noir</option>
-                <option value="warm">Warm</option>
-                <option value="cool">Cool</option>
-                <option value="vivid">Vivid</option>
-              </select>
-            </label>
-          </section>
-
-          <section class="group">
-            <h2>Save</h2>
-            <div class="row">
-              <button class="btn" id="record" disabled>Record</button>
-              <button class="btn primary" id="export" disabled>Export video</button>
-            </div>
-            <label class="check"><input type="checkbox" id="keep-audio" checked /> <span>Keep the sound when exporting</span></label>
-            <div class="progress" id="progress" hidden>
-              <div class="progress-bar"><i id="progress-fill"></i></div>
-              <span class="mono" id="progress-text">0%</span>
-              <button class="btn small" id="export-cancel">Cancel</button>
-            </div>
-            <p class="hint" id="save-note">Export reads a video file frame by frame, so every frame is masked however slow the computer is.</p>
-          </section>
-
-          <details class="group">
-            <summary><h2>Details</h2></summary>
-            <label class="check"><input type="checkbox" id="landmarks" /> <span>Show tracking points</span></label>
-            <p class="hint mono" id="engine"></p>
-          </details>
-        </aside>
-      </main>
+      <section class="panel guide" id="guide" hidden>
+        <div class="panel-title"><b>guide</b><button type="button" class="key" id="guide-close" style="height:27px;font-size:9px">close</button></div>
+        <ol>
+          <li><i>1</i><span>open a video or start the camera. it all runs in this browser: nothing is uploaded.</span></li>
+          <li><i>2</i><span>pick a mask, or drop your own .glb head model on the page.</span></li>
+          <li><i>3</i><span>choose what hides the face under the mask. a gap in a mask then shows that, never skin.</span></li>
+          <li><i>4</i><span>export writes the file again with a mask on every frame and keeps the sound. record saves what you see.</span></li>
+        </ol>
+        <p><i class="led on"></i>lock is green while the face is tracked, and <i class="led p on"></i>violet while the mask follows the head from the body, in profile or turned away.</p>
+        <p>if a head that was just there cannot be found, the whole picture is hidden until it is.</p>
+        <p>console has the fit of each mask: size, place, turn and stretch, and fit by points for a model of your own.</p>
+        <p>watch an export through once before you publish it.</p>
+      </section>
     </div>
 
-    <video id="video" playsinline muted hidden></video>
-    <script type="module" src="./src/main.js"></script>
-  </body>
+    <div class="scrubrow" id="scrubrow" hidden>
+      <span class="on-grid" id="time">0:00</span>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the video">
+      <span class="on-grid" id="duration">0:00</span>
+      <button type="button" class="key toggle" id="sound" aria-pressed="false" title="Hear the video while it plays">sound</button>
+    </div>
+    <div class="lcd"><span id="status-line">loading tracker…</span><span>local processing</span></div>
+    <footer class="keys">
+      <span class="on-grid"><kbd>Space</kbd>pause <kbd>E</kbd>export <kbd>R</kbd>record <kbd>M</kbd>mirror <kbd>F</kbd>full screen</span>
+      <span class="on-grid">right-click a slider resets it</span>
+    </footer>
+  </section>
+
+  <aside class="column" id="console">
+    <section class="panel">
+      <div class="panel-title"><b>fit</b><button type="button" class="key" id="fit-reset" style="height:27px;font-size:9px">reset</button></div>
+      <label class="control"><span class="control-top"><span>size</span><output></output></span><input type="range" data-fit="scale" min="0.6" max="1.8" step="0.01" value="1"></label>
+      <label class="control"><span class="control-top"><span>left / right</span><output></output></span><input type="range" data-fit="x" min="-8" max="8" step="0.1" value="0"></label>
+      <label class="control"><span class="control-top"><span>up / down</span><output></output></span><input type="range" data-fit="y" min="-8" max="8" step="0.1" value="0"></label>
+      <label class="control"><span class="control-top"><span>forward</span><output></output></span><input type="range" data-fit="z" min="-8" max="8" step="0.1" value="0"></label>
+      <label class="control"><span class="control-top"><span>nod</span><output></output></span><input type="range" data-fit="pitch" min="-40" max="40" step="0.5" value="0"></label>
+      <label class="control"><span class="control-top"><span>turn</span><output></output></span><input type="range" data-fit="yaw" min="-40" max="40" step="0.5" value="0"></label>
+      <label class="control"><span class="control-top"><span>lean</span><output></output></span><input type="range" data-fit="roll" min="-40" max="40" step="0.5" value="0"></label>
+      <label class="control"><span class="control-top"><span>width</span><output></output></span><input type="range" data-fit="sx" min="0.6" max="1.6" step="0.01" value="1"></label>
+      <label class="control"><span class="control-top"><span>height</span><output></output></span><input type="range" data-fit="sy" min="0.6" max="1.6" step="0.01" value="1"></label>
+      <label class="control"><span class="control-top"><span>depth</span><output></output></span><input type="range" data-fit="sz" min="0.6" max="1.6" step="0.01" value="1"></label>
+      <div class="keys-row">
+        <button type="button" class="key" id="fit-points">fit by points</button>
+        <button type="button" class="key toggle" id="guide-head" aria-pressed="false" title="Draw the outline of a real head, to see if the mask encloses it">head outline</button>
+      </div>
+      <p class="hint" id="coverage"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><b>tracking</b></div>
+      <label class="control"><span class="control-top"><span>cover size</span><output id="margin-val"></output></span><input type="range" id="margin" min="0.85" max="1.7" step="0.05" value="1"></label>
+      <label class="control"><span class="control-top"><span>people to cover</span></span>
+        <select id="people" aria-label="People to cover"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+      </label>
+      <div class="keys-row">
+        <button type="button" class="key toggle" id="landmarks" aria-pressed="false">tracking points</button>
+      </div>
+      <p class="hint" id="engine"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><b>picture</b></div>
+      <select id="look" aria-label="Look of the picture">
+        <option value="none">as filmed</option>
+        <option value="mono">mono</option>
+        <option value="noir">noir</option>
+        <option value="warm">warm</option>
+        <option value="cool">cool</option>
+        <option value="vivid">vivid</option>
+      </select>
+      <p class="hint">a look for the whole picture, under the mask</p>
+    </section>
+  </aside>
+</main>
+
+<video id="video" playsinline muted hidden></video>
+<script type="module" src="./src/main.js"></script>
+</body>
 </html>

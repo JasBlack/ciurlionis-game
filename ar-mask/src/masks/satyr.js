@@ -12,7 +12,7 @@ const R = [10, 13, 12]; // its radii
 const D2R = Math.PI / 180;
 
 const col = (hex) => new THREE.Color(hex);
-const SKIN = col(0x7f86ea), SKIN_LIGHT = col(0xaab2f7), HAIR = col(0x231a2b), HAIR_HI = col(0x47385c);
+const SKIN = col(0x7f86ea), SKIN_LIGHT = col(0xaab2f7), HAIR = col(0x1c1424), HAIR_HI = col(0x3d2e52);
 const CYAN = col(0x55e8d6), YELLOW = col(0xf4ea62), ORANGE = col(0xff9638);
 const PEARL = col(0xefeafc), LIME = col(0xb6f074), PINK = col(0xf279c2), TEAL = col(0x52dccb), VIOLET = col(0x8f6fe0);
 
@@ -34,16 +34,11 @@ function buildShell() {
   const g = new THREE.SphereGeometry(1, 64, 44);
   const p = g.attributes.position;
   const colors = new Float32Array(p.count * 3);
-  const hair = new Float32Array(p.count);
   const c = new THREE.Color(), r = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
     const Y = C[1] + p.getY(i) * R[1];
     const X = C[0] + p.getX(i) * R[0] * jawTaper(Y);
-    const Z = C[2] + p.getZ(i) * R[2];
-    p.setXYZ(i, X, Y, Z);
-    // hair: above a brow line that dips at the centre, and everything behind the ears
-    const brow = 4.7 + 0.05 * X * X + 0.45 * Math.min(Math.abs(X), 2.4);
-    hair[i] = Math.max(smooth(brow - 0.5, brow + 0.5, Y), smooth(1.2, -1.6, Z) * smooth(-10.5, -8.5, Y));
+    p.setXYZ(i, X, Y, C[2] + p.getZ(i) * R[2]);
     // skin: periwinkle, lighter down the middle, a spectrum across the cheeks (stronger on the wearer's left)
     c.copy(SKIN).lerp(SKIN_LIGHT, smooth(4.5, 0, Math.abs(X)) * 0.5);
     const cheek = smooth(2.2, 5, Math.abs(X)) * smooth(-7, -2.5, Y) * smooth(6, 2.5, Y) * (X > 0 ? 0.9 : 0.45);
@@ -54,18 +49,42 @@ function buildShell() {
   g.deleteAttribute('uv');
   g.computeVertexNormals();
 
-  // the hair is its own skin-tight cap just outside the shell, so it can have its own, duller surface
-  const cap = g.clone();
-  const cp = cap.attributes.position, cc = cap.attributes.color;
-  for (let i = 0; i < cp.count; i++) {
-    cp.setXYZ(i, C[0] + (cp.getX(i) - C[0]) * 1.022, C[1] + (cp.getY(i) - C[1]) * 1.022, C[2] + (cp.getZ(i) - C[2]) * 1.022);
-    cc.setXYZ(i, HAIR.r, HAIR.g, HAIR.b);
+  // The hair is its own skin-tight cap just outside the shell, so it can have its own, duller surface.
+  // It is laid out from the crown down to the hairline along every meridian, so its lower edge is the hairline
+  // itself, a smooth line, and not the stepped edge of whichever triangles happen to fall inside it.
+  const isHair = (th, ph) => {
+    const Y = C[1] + Math.cos(ph) * R[1];
+    const X = Math.sin(ph) * Math.sin(th) * R[0] * jawTaper(Y);
+    const Z = C[2] + Math.sin(ph) * Math.cos(th) * R[2];
+    const brow = 4.7 + 0.05 * X * X + 0.45 * Math.min(Math.abs(X), 2.4);
+    return Math.max(smooth(brow - 0.5, brow + 0.5, Y), smooth(1.2, -1.6, Z) * smooth(-10.5, -8.5, Y)) > 0.5;
+  };
+  const COLS = 96, ROWS = 28, GROW = 1.022;
+  const pos = [], col = [], idx = [];
+  for (let i = 0; i <= COLS; i++) {
+    const th = (i / COLS) * Math.PI * 2;
+    // how far down this meridian the hair goes: walk down from the crown, then close in on the edge
+    let lo = 0.02, hi = Math.PI;
+    for (let ph = 0.02; ph <= Math.PI; ph += 0.02) { if (!isHair(th, ph)) { hi = ph; break; } lo = ph; }
+    for (let n = 0; n < 18; n++) { const mid = (lo + hi) / 2; if (isHair(th, mid)) lo = mid; else hi = mid; }
+    for (let j = 0; j <= ROWS; j++) {
+      const ph = (j / ROWS) * lo;
+      const Y = C[1] + Math.cos(ph) * R[1];
+      pos.push(Math.sin(ph) * Math.sin(th) * R[0] * jawTaper(Y) * GROW, C[1] + (Y - C[1]) * GROW, C[2] + Math.sin(ph) * Math.cos(th) * R[2] * GROW);
+      col.push(HAIR.r, HAIR.g, HAIR.b);
+    }
   }
-  const src = g.index.array, keep = [];
-  for (let i = 0; i < src.length; i += 3) {
-    if (hair[src[i]] > 0.5 && hair[src[i + 1]] > 0.5 && hair[src[i + 2]] > 0.5) keep.push(src[i], src[i + 1], src[i + 2]);
+  for (let i = 0; i < COLS; i++) {
+    for (let j = 0; j < ROWS; j++) {
+      const p0 = i * (ROWS + 1) + j, p1 = p0 + ROWS + 1;
+      idx.push(p0, p0 + 1, p1, p1, p0 + 1, p1 + 1);
+    }
   }
-  cap.setIndex(keep);
+  const cap = new THREE.BufferGeometry();
+  cap.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  cap.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  cap.setIndex(idx);
+  cap.computeVertexNormals();
   return { skin: g, cap };
 }
 
@@ -140,7 +159,7 @@ function buildHorns() {
     for (let i = 0; i <= 26; i++) pts.push(at(i / 26));
     parts.push(taperedTube(pts, {
       radial: 12, segments: 64, radius,
-      color: (t) => new THREE.Color().copy(HAIR).lerp(c.set(0x7a6a8c), smooth(0.2, 1, t) * 0.8),
+      color: (t) => new THREE.Color().copy(HAIR).lerp(c.set(0x54456a), smooth(0.2, 1, t) * 0.8),
     }));
     for (let i = 0; i < 16; i++) {
       const u = 0.2 + 0.74 * (i / 15);
@@ -248,9 +267,9 @@ function assets() {
     mouthGeo: new THREE.SphereGeometry(1, 20, 14),
     suckerGeo: new THREE.IcosahedronGeometry(1, 1),
     iri: new THREE.MeshPhysicalMaterial({ vertexColors: true, ...pearl }),
-    dark: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.46, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.4 }),
+    dark: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, clearcoat: 0.14, clearcoatRoughness: 0.4, envMapIntensity: 0.28 }),
     skin: new THREE.MeshPhysicalMaterial({ color: SKIN, ...pearl }),
-    eye: new THREE.MeshPhysicalMaterial({ color: 0x050409, roughness: 0.04, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6 }),
+    eye: new THREE.MeshPhysicalMaterial({ color: 0x050409, roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.5 }),
     amber: new THREE.MeshStandardMaterial({ color: 0xffa52e, emissive: 0xb65a00, emissiveIntensity: 0.55, roughness: 0.35 }),
     mouth: new THREE.MeshStandardMaterial({ color: 0x120a22, roughness: 0.6 }),
     suckLilac: new THREE.MeshPhysicalMaterial({ color: 0xc3b0f4, roughness: 0.3, clearcoat: 1, iridescence: 0.5, envMapIntensity: 0.7 }),

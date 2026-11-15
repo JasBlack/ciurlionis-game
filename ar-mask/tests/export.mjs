@@ -16,7 +16,7 @@ await page.evaluate((id) => window.__maskLayer.selectMask(id), mask);
 await page.setInputFiles('#file-input', video);
 await page.waitForFunction(() => window.__maskLayer.state.kind === 'file', null, { timeout: 30000 });
 const download = page.waitForEvent('download', { timeout: 1500000 });
-await page.click('#export');
+await page.click('.transport [data-do=export]');
 await page.waitForFunction(() => window.__lastExport || /failed|cancelled/i.test(document.getElementById('save-note').textContent), null, { timeout: 1500000, polling: 1000 });
 console.log('note:', await page.textContent('#save-note'));
 const info = await page.evaluate(() => {
@@ -24,7 +24,7 @@ const info = await page.evaluate(() => {
   if (!r) return null;
   const tally = {};
   for (const f of r.log) { const k = f.hidden ? 'hidden' : (f.states.join('+') || 'none'); tally[k] = (tally[k] || 0) + 1; }
-  return { filename: r.filename, frames: r.frames, codec: r.codec, audioKept: r.audioKept, bytes: r.blob.size, tally };
+  return { filename: r.filename, frames: r.frames, frameRate: r.frameRate, codec: r.codec, audioKept: r.audioKept, bytes: r.blob.size, tally };
 });
 console.log(JSON.stringify(info));
 const d = await download;

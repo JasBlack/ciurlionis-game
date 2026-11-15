@@ -7,3 +7,6 @@ test-media/
 test-out/
 *.log
 .DS_Store
+
+# the card loop is a design file, not a stray video (the game repository ignores *.mp4)
+!design/*.mp4

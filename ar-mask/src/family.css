@@ -1,0 +1,156 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   JAS.BLACK tool family — shared look (values taken from Fault, Code Painter,
+   Growth, Pinch, Crop Studio and SnipSnap as shipped, Nov 2026).
+   Copy this file into a new tool and build on the tokens; don't invent new ones.
+   Theme: <body data-ui="dark"> (default) or <body data-ui="light">.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Fonts: Google Fonts in <head> (see head.html), or vendor the .ttf files for
+   offline/single-file builds:
+@font-face{font-family:Archivo;src:url('fonts/archivo-800.ttf') format('truetype');font-weight:800;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('fonts/ibm-plex-mono-400.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('fonts/ibm-plex-mono-500.ttf') format('truetype');font-weight:500;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('fonts/ibm-plex-mono-600.ttf') format('truetype');font-weight:600;font-display:swap} */
+
+:root{
+  color-scheme:dark;
+  /* the two family accents — exact, everywhere */
+  --accent:#39ff88;        /* green: live, on, primary action, the title LED */
+  --accent2:#b36bff;       /* violet: values, marks, knobs, MIDI learn */
+  --rec:#ff3b30;           /* red: recording / danger only */
+  /* dark console */
+  --case:#121314; --panel:#18191b; --line:#26272a;
+  --key:#222326; --keyon:#1b1c1e; --keyline:#303135; --shadow:#070708;
+  --text:#e4e4e1; --muted:#929399; --track:#2e2f33; --well:#141517;
+  --ink:#e4e4e1; --inktext:#121314; --knob:#2c2d31; --ledoff:#34353a;
+  --stage:#0b0b0c;         /* the picture well stays dark in both themes */
+  --wide:'Archivo','Arial Black','Helvetica Neue',Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace;
+  /* cutting-mat dot grid: a baked 48 px tile drawn at 24 px (never a live CSS gradient — they shimmer on macOS) */
+  --dotgrid:url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAUklEQVR42u3TMQ6AMAgF0N/q1PuftZOmLr0CMZr3EgYWCAQSAAAAgDe0qsJrrSPJ2Olsrd0VfXrhckaSc8eoatK/fkKVA8wk147pWwEAAIB/eQDMfgkI7Qnw3wAAAABJRU5ErkJggg==');
+}
+body[data-ui=light]{
+  color-scheme:light;
+  --case:#e7e7e4; --panel:#efefec; --line:#d6d6d2;
+  --key:#fafaf8; --keyon:#ececea; --keyline:#cfcfcb; --shadow:#bdbdb8;
+  --text:#1b1b1d; --muted:#686864; --track:#d0d0cc; --well:#e4e4e1;
+  --ink:#1b1b1d; --inktext:#f2f2ef; --knob:#fafaf8; --ledoff:#cdcdc9;
+  --dotgrid:url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAVklEQVR42u3TOQqAUAwFwOcGtoL3v6KVjYrY/CsEUWaqVAnZEgAAAIA3dIW5pyRLi7ckZ0WRobCBNcmcZGzN7BVF+q+fUOUGjjb5q53Q7WMBAACA/3gAsAsHDMExuscAAAAASUVORK5CYII=');
+}
+
+/* ── page ── */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--dotgrid) 0 0/24px 24px,var(--case);color:var(--text);
+  font:11px/1.4 var(--mono);-webkit-font-smoothing:antialiased;
+  padding:12px;display:flex;flex-direction:column;gap:12px;overflow:hidden;
+}
+button,select{font:500 10px var(--mono);color:var(--text)}
+
+/* ── the title: green LED · NAME · version on hover (identical in every tool) ── */
+.brandbox{display:flex;align-items:baseline;gap:9px;flex:none}
+.brand{
+  font:800 13px var(--wide);letter-spacing:.32em;white-space:nowrap;cursor:default;
+  display:inline-flex;align-items:center;gap:10px;
+}
+.brand::before{content:'';flex:none;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.brand-ver{font:500 9px var(--mono);letter-spacing:.08em;color:var(--muted);white-space:nowrap;opacity:0;transition:opacity .15s}
+.brand:hover+.brand-ver,.brand-ver:hover{opacity:1}
+
+/* ── top bar (console tools): left = title, mode switch, status LEDs · middle = transport · right = view keys ── */
+header.topbar{height:42px;flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:14px;padding:0 4px}
+.hl,.hr,.transport{display:flex;align-items:center;gap:8px;min-width:0}
+.hl{gap:14px}
+.hr{justify-content:flex-end}
+
+/* ── keys ── */
+.key,button.key{
+  height:33px;padding:0 11px;border-radius:9px;border:1px solid var(--keyline);background:var(--key);
+  box-shadow:0 2px 0 var(--shadow);cursor:pointer;white-space:nowrap;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+}
+.key:hover:not(:disabled){border-color:var(--muted)}
+.key:active{transform:translateY(1px);box-shadow:inset 0 1px 3px #0003}
+.key:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent2);outline-offset:3px}
+.key:disabled{opacity:.4;cursor:default}
+.key.primary{background:var(--accent);color:#0b0b0c;border-color:#24bc62;box-shadow:0 2px 0 #13743c;font-weight:600}
+.key.ink{background:var(--ink);color:var(--inktext);border-color:var(--ink)}               /* record */
+.key.ink .dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.6}
+.key.ink.recording .dot{background:var(--rec);box-shadow:0 0 5px var(--rec);opacity:1;animation:jb-pulse 1s infinite}
+.transport .key{height:38px;min-width:65px}
+.key.icon{width:36px;padding:0;font-size:17px}
+@keyframes jb-pulse{50%{opacity:.4}}
+
+/* ── segmented switch (easy | console, tabs) with an LED on the active one ── */
+.seg{display:flex;border:1px solid var(--keyline);border-radius:10px;background:var(--well);padding:3px;gap:3px}
+.seg button{height:27px;padding:0 8px;font-size:9px;border:0;border-radius:7px;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer}
+.seg button::before{content:'';width:4px;height:4px;border-radius:50%;background:transparent}
+.seg button[aria-pressed=true]{color:var(--text);background:var(--key);box-shadow:0 1px 0 var(--shadow),0 0 0 1px var(--keyline)}
+.seg button[aria-pressed=true]::before{background:var(--accent);box-shadow:0 0 4px #39ff8877}
+
+/* ── status LEDs ── */
+.status{display:flex;align-items:center;gap:12px;font-size:9px;color:var(--muted)}
+.status span{display:flex;gap:6px;align-items:center}
+.led{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ledoff);flex:none}
+.led.on{background:var(--accent);box-shadow:0 0 4px #39ff8877}
+.led.p.on{background:var(--accent2);box-shadow:0 0 4px #b36bff77}
+.led.rec.on{background:var(--rec);box-shadow:0 0 5px var(--rec)}
+
+/* ── layout: left steps · stage · right console ── */
+main.console{display:grid;grid-template-columns:268px minmax(0,1fr) 282px;gap:12px;min-height:0;flex:1}
+.column{display:flex;flex-direction:column;gap:8px;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--keyline) transparent}
+.panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:13px 12px;flex:none}
+.panel-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:9px;letter-spacing:.2em;text-transform:uppercase}
+.panel-title b{font-weight:600;display:flex;gap:8px;align-items:center}
+.panel-title b i{font-style:normal;width:18px;height:18px;display:inline-grid;place-items:center;background:var(--accent);color:#0b0b0c;border-radius:50%;font-size:10px;font-weight:600;letter-spacing:0}   /* step number */
+.panel-title>span{font-size:7px;color:var(--muted);letter-spacing:.15em}
+.hint{font-size:8px;color:var(--muted);margin:10px 0 0;line-height:1.6}
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0;gap:8px}
+.monitor{position:relative;min-height:180px;flex:1;display:flex;align-items:center;justify-content:center;background:var(--stage);border-radius:12px;overflow:hidden;padding:12px}
+.lcd{border-radius:8px;background:var(--stage);color:var(--accent);padding:7px 10px;display:flex;justify-content:space-between;gap:12px;font-size:8px;min-width:0}
+.lcd span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+footer.keys{display:flex;justify-content:space-between;gap:12px;font-size:8px;color:var(--muted);padding:2px 4px}
+kbd{display:inline-block;border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-right:4px;font:500 8px/1.6 var(--mono);color:var(--text);letter-spacing:.06em;text-transform:uppercase}
+
+/* ── controls ── */
+.control{margin:0 0 14px}
+.control:last-child{margin-bottom:0}
+.control-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:9px;margin-bottom:5px}
+.control-top>span{text-transform:lowercase}
+.control output{font-size:9px;color:var(--accent2);font-weight:500}
+body[data-ui=light] .control output{color:#7943b3}
+input[type=range]{display:block;appearance:none;-webkit-appearance:none;width:100%;height:15px;background:transparent;margin:0;cursor:pointer;accent-color:var(--accent)}
+input[type=range]::-webkit-slider-runnable-track{height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent) var(--pct,0%),var(--track) var(--pct,0%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--knob);box-shadow:0 1px 3px #0005,inset 0 0 0 1px var(--keyline);margin-top:-5px}
+input[type=range]::-moz-range-track{height:2px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:2px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;border:1px solid var(--keyline);background:var(--knob)}
+select{appearance:none;height:33px;border:1px solid var(--keyline);border-radius:9px;padding:0 28px 0 11px;cursor:pointer;min-width:0;
+  background:var(--well) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238c8c88'/%3E%3C/svg%3E") no-repeat right 10px center}
+select:hover{border-color:var(--muted)}
+
+/* ── toast (bottom right) ── */
+#toast{position:fixed;bottom:20px;right:20px;transform:translateY(8px);opacity:0;visibility:hidden;pointer-events:none;transition:transform .2s,opacity .2s,visibility .2s;
+  max-width:min(360px,calc(100vw - 40px));background:var(--panel);color:var(--text);border:1px solid var(--line);border-left:2px solid var(--accent);border-radius:9px;padding:11px 15px;font-size:10px;box-shadow:0 8px 24px #0005;z-index:20}
+#toast.visible{transform:none;opacity:1;visibility:visible}
+
+/* ── text that sits straight on the dot grid gets a soft patch of plain ground, so the dots fade out behind it ── */
+.on-grid{background:var(--case);box-shadow:0 0 10px 9px var(--case);border-radius:8px}
+
+/* ── a centred single-purpose layout (SnipSnap style): bigger title, the LED hangs left so the WORD centres ── */
+.hero-title{display:flex;flex-direction:column;align-items:center;gap:12px}
+.hero-title .brand{font-size:24px;gap:16px;position:relative}
+.hero-title .brand::before{position:absolute;left:-28px;top:50%;translate:0 -50%;width:12px;height:12px;box-shadow:0 0 12px var(--accent)}
+.hero-title .tagline{font-size:11px;letter-spacing:.16em;color:var(--muted)}
+
+/* ── narrow screens ── */
+@media(max-width:1150px){main.console{grid-template-columns:220px minmax(0,1fr) 250px}.status{display:none}}
+@media(max-width:850px){
+  body{overflow:auto;height:auto;min-height:100%}
+  header.topbar{grid-template-columns:1fr auto;height:auto;row-gap:10px}
+  .transport{grid-row:2;grid-column:1/-1;justify-content:center}
+  main.console{display:flex;flex-direction:column}
+  .monitor{min-height:300px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

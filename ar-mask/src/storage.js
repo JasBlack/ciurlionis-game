@@ -1,7 +1,8 @@
 // What the app remembers between visits, all of it in this browser only:
 // settings and per-mask fit in localStorage, imported .glb files in IndexedDB.
 
-const PREFIX = 'mask-layer.';
+// The key carries a version: change it when the shape of what is stored changes, and old settings are left behind.
+const PREFIX = 'mask-v1.';
 
 export function load(key, fallback) {
   try {

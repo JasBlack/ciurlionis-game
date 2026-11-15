@@ -22,7 +22,7 @@ for (let i = 0; i < n; i++) {
   await page.waitForTimeout(1000);
   const info = await page.evaluate(() => {
     const { state, tracker } = window.__maskLayer;
-    return { t: document.getElementById('video').currentTime.toFixed(2), chip: document.getElementById('chip-state').textContent, perf: document.getElementById('chip-perf').textContent, states: state.tracks.map((t) => t.state), stats: tracker.stats };
+    return { t: document.getElementById('video').currentTime.toFixed(2), status: document.getElementById('status-line').textContent, states: state.tracks.map((t) => t.state), stats: tracker.stats };
   });
   console.log(JSON.stringify(info));
   await page.locator('#out').screenshot({ path: `${outDir}/frame-${String(i).padStart(2, '0')}.png` });

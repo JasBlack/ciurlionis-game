@@ -1,8 +1,11 @@
 // Mask Layer: wires the page together. Source (camera or file) -> tracker -> stage -> screen / recorder.
+// The look and the shared behaviour (title, theme, slider reset, switches, toast) come from the JAS.BLACK family kit.
+import './family.css';
+import './mask.css';
+import { toast, paintRange } from './family.js';
 import * as THREE from 'three';
-import './styles.css';
 import { createLandmarkers } from './tracking/landmarkers.js';
-import { HeadTracker, BODY, HOLD } from './tracking/headTracker.js';
+import { HeadTracker, FACE, BODY, HOLD } from './tracking/headTracker.js';
 import { CANON, FACE_OVAL } from './tracking/canonical.js';
 import { Stage, IDENTITY_FIT } from './render/stage.js';
 import { satyr } from './masks/satyr.js';
@@ -13,26 +16,35 @@ import { exportFile, LiveRecorder, saveBlob } from './export/exporter.js';
 import * as store from './storage.js';
 
 const $ = (id) => document.getElementById(id);
+const all = (sel) => [...document.querySelectorAll(sel)];
 const els = {
-  video: $('video'), out: $('out'), stage: $('stage'), empty: $('empty'),
-  chipState: $('chip-state'), chipPerf: $('chip-perf'),
-  camera: $('camera'), file: $('file'), emptyCamera: $('empty-camera'), emptyFile: $('empty-file'),
-  fileInput: $('file-input'), cameraField: $('camera-field'), cameraSelect: $('camera-select'), mirror: $('mirror'),
-  masks: $('masks'), importBtn: $('import'), glbInput: $('glb-input'), showMask: $('show-mask'), maskHint: $('mask-hint'),
-  sliders: $('sliders'), fitPoints: $('fit-points'), fitReset: $('fit-reset'), guide: $('guide'), coverage: $('coverage'),
-  underlay: $('underlay'), margin: $('margin'), strict: $('strict'), people: $('people'), look: $('look'),
-  record: $('record'), exportBtn: $('export'), keepAudio: $('keep-audio'),
-  progress: $('progress'), progressFill: $('progress-fill'), progressText: $('progress-text'), exportCancel: $('export-cancel'),
-  saveNote: $('save-note'), landmarks: $('landmarks'), engine: $('engine'),
-  transport: $('transport'), play: $('play'), scrub: $('scrub'), time: $('time'), sound: $('sound'),
-  anchors: $('anchors'), calibBar: $('calib-bar'), calibApply: $('calib-apply'), calibCancel: $('calib-cancel'),
+  video: $('video'), out: $('out'), monitor: $('monitor'), empty: $('empty'),
+  status: $('status-line'), ledLive: $('led-live'), ledLock: $('led-lock'), ledRec: $('led-rec'),
+  mode: $('mode'), pause: $('pause'), guideKey: $('guide-key'), guide: $('guide'), guideClose: $('guide-close'),
+  camera: $('camera'), emptyCamera: $('empty-camera'), cameraSelect: $('camera-select'), mirror: $('mirror'),
+  fileInput: $('file-input'), masks: $('masks'), importBtn: $('import'), glbInput: $('glb-input'),
+  showMask: $('show-mask'), maskHint: $('mask-hint'),
+  underlay: $('underlay'), strict: $('strict'), keepAudio: $('keep-audio'),
+  exportBusy: $('export-busy'), exportCancel: $('export-cancel'), meter: $('meter'), meterFill: $('meter-fill'), saveNote: $('save-note'),
+  fitReset: $('fit-reset'), fitPoints: $('fit-points'), guideHead: $('guide-head'), coverage: $('coverage'),
+  margin: $('margin'), marginVal: $('margin-val'), people: $('people'), landmarks: $('landmarks'), engine: $('engine'), look: $('look'),
+  scrubrow: $('scrubrow'), scrub: $('scrub'), time: $('time'), duration: $('duration'), sound: $('sound'),
+  pins: $('pins'), fitbar: $('fitbar'), fitApply: $('fit-apply'), fitCancel: $('fit-cancel'),
 };
+const exportKeys = all('[data-do=export]');
+const recordKeys = all('[data-do=record]');
+const openKeys = all('[data-do=open]');
+const fitSliders = all('input[data-fit]');
 
 const stage = new Stage(els.out);
 let tracker = null;
 
+// the picture uses the family's own colours: read them from the tokens rather than repeat them
+const token = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+stage.setPalette({ accent: token('--accent'), accent2: token('--accent2'), stage: token('--stage') });
+
 const prefs = store.load('prefs', {
-  mask: 'satyr', underlay: 'pixelate', margin: 1, strict: true, people: 1, look: 'none', keepAudio: true, showMask: true,
+  mask: 'satyr', underlay: 'pixelate', margin: 1, strict: true, people: 1, look: 'none', keepAudio: true, showMask: true, mode: 'easy',
 });
 const fits = store.load('fits', {});
 const masks = [satyr, helm, bag];
@@ -43,6 +55,7 @@ const state = {
   stream: null,
   tracks: [],
   exporting: false,
+  exportText: '',
   calibrating: false,
   recorder: null,
   loop: 0,
@@ -52,85 +65,87 @@ const state = {
   manual: false,
 };
 
-// ---------------------------------------------------------------- masks and fit
-
-const SLIDERS = [
-  ['scale', 'Size', 0.6, 1.8, 0.01],
-  ['x', 'Left / right', -8, 8, 0.1],
-  ['y', 'Up / down', -8, 8, 0.1],
-  ['z', 'Forward', -8, 8, 0.1],
-  ['pitch', 'Nod', -40, 40, 0.5],
-  ['yaw', 'Turn', -40, 40, 0.5],
-  ['roll', 'Lean', -40, 40, 0.5],
-  ['sx', 'Width', 0.6, 1.6, 0.01],
-  ['sy', 'Height', 0.6, 1.6, 0.01],
-  ['sz', 'Depth', 0.6, 1.6, 0.01],
-];
-const sliderEls = {};
-for (const [key, label, min, max, step] of SLIDERS) {
-  const row = document.createElement('label');
-  row.className = 'slider';
-  row.innerHTML = `<span>${label}</span><input type="range" id="fit-${key}" min="${min}" max="${max}" step="${step}" /><output></output>`;
-  const input = row.querySelector('input'), output = row.querySelector('output');
-  input.addEventListener('input', () => {
-    currentFit()[key] = Number(input.value);
-    output.textContent = Number(input.value).toFixed(step < 0.1 ? 2 : 1);
-    applyFit();
-  });
-  sliderEls[key] = { input, output, step };
-  els.sliders.append(row);
+const pressed = (el) => el.getAttribute('aria-pressed') === 'true';
+const setPressed = (el, on) => el.setAttribute('aria-pressed', String(!!on));
+/** A key that stays on. */
+function bindToggle(el, onChange) {
+  el.addEventListener('click', () => { setPressed(el, !pressed(el)); onChange(pressed(el)); });
 }
+/** A segmented switch: family.js moves the light, this reports the choice. */
+function bindSeg(el, onChange) {
+  el.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) onChange(b.dataset.value); });
+}
+function setSeg(el, value) {
+  for (const b of el.querySelectorAll('button')) setPressed(b, b.dataset.value === value);
+}
+function savePref(key, value) { prefs[key] = value; store.save('prefs', prefs); }
+
+// ---------------------------------------------------------------- masks and fit
 
 const currentMask = () => masks.find((m) => m.id === prefs.mask) ?? masks[0];
 function currentFit() {
   const id = currentMask().id;
   return (fits[id] ??= { ...IDENTITY_FIT });
 }
+const digits = (el) => (Number(el.step) < 0.1 ? 2 : 1);
 
 function applyFit({ quiet = false } = {}) {
   const fit = currentFit();
   stage.setFit(fit);
-  for (const [key, { input, output, step }] of Object.entries(sliderEls)) {
-    if (document.activeElement !== input) input.value = fit[key];
-    output.textContent = Number(fit[key]).toFixed(step < 0.1 ? 2 : 1);
+  for (const el of fitSliders) {
+    const key = el.dataset.fit;
+    if (document.activeElement !== el) el.value = fit[key];
+    paintRange(el);
+    el.closest('.control').querySelector('output').textContent = Number(fit[key]).toFixed(digits(el));
   }
   const gaps = stage.coverageGaps();
   els.coverage.classList.toggle('warn', gaps.length > 0);
   els.coverage.textContent = gaps.length
-    ? `At this fit the mask does not reach ${gaps.join(', ')}. The privacy patch still covers the face.`
-    : 'At this fit the mask encloses a real head on every side.';
+    ? `at this fit the mask does not reach ${gaps.join(', ')}. the cover under it still hides the face`
+    : 'at this fit the mask encloses a real head on every side';
   if (!quiet) store.save('fits', fits);
   redraw();
+}
+
+for (const el of fitSliders) {
+  el.addEventListener('input', () => { currentFit()[el.dataset.fit] = Number(el.value); applyFit(); });
 }
 
 function renderMaskList() {
   els.masks.replaceChildren();
   for (const m of masks) {
+    m.thumb ??= stage.thumbnail(m);
     const b = document.createElement('button');
-    b.className = 'mask';
+    b.className = 'tile';
     b.type = 'button';
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', String(m.id === currentMask().id));
-    const [c1, c2, c3] = m.swatch;
-    b.innerHTML = `<i class="sw" style="background: radial-gradient(circle at 35% 30%, ${c3} 0 12%, ${c1} 13% 55%, ${c2} 56%)"></i>
-      <span><b></b><small></small></span>${m.kind === 'glb' ? '<span class="x" title="Remove this mask">✕</span>' : ''}`;
-    b.querySelector('b').textContent = m.name;
-    b.querySelector('small').textContent = m.note;
-    b.addEventListener('click', (e) => {
-      if (e.target.classList.contains('x')) removeMask(m); else selectMask(m.id);
-    });
+    const img = document.createElement('img');
+    img.src = m.thumb;
+    img.alt = '';
+    const name = document.createElement('span');
+    name.textContent = m.name;
+    b.append(img, name);
+    if (m.kind === 'glb') {
+      const x = document.createElement('i');
+      x.className = 'remove';
+      x.title = 'remove this mask';
+      x.textContent = '×';
+      b.append(x);
+    }
+    b.addEventListener('click', (e) => { if (e.target.classList.contains('remove')) removeMask(m); else selectMask(m.id); });
     els.masks.append(b);
   }
 }
 
 function selectMask(id) {
-  prefs.mask = id;
-  store.save('prefs', prefs);
-  stage.setMask(currentMask());
+  savePref('mask', id);
+  const m = currentMask();
+  stage.setMask(m);
   renderMaskList();
-  els.maskHint.textContent = currentMask().kind === 'glb'
-    ? 'Imported model. Open Fit to size and place it; “Fit by points” lines its eyes and mouth up with yours.'
-    : '';
+  els.maskHint.textContent = m.kind === 'glb'
+    ? `${m.note.toLowerCase()}. size and place it in console, under fit`
+    : 'or drop a .glb head model anywhere';
   applyFit({ quiet: true });
 }
 
@@ -152,29 +167,41 @@ async function importGlb(file) {
       await store.keepMask({ id, name, buffer });
     }
     selectMask(id);
-    $('fit-group').open = true;
+    setMode('console'); // a model of your own needs fitting, and the fit is in console
+    toast(`added ${name}`);
   } catch (err) {
     console.error(err);
-    els.maskHint.textContent = `Could not read ${file.name} as a .glb model (${err.message}).`;
+    toast(`could not read ${file.name} as a .glb model: ${err.message}`);
   }
 }
 
+// ---------------------------------------------------------------- status
+
+function describe() {
+  const t = state.tracks;
+  const running = !!state.kind && !els.video.paused && !state.exporting && !state.calibrating;
+  els.ledLive.classList.toggle('on', running);
+  const lost = t.some((x) => x.state === HOLD), body = t.some((x) => x.state === BODY);
+  els.ledLock.classList.toggle('on', t.length > 0 && !lost && !state.calibrating);
+  els.ledLock.classList.toggle('p', body && !lost);
+  els.ledRec.classList.toggle('on', !!state.recorder);
+
+  let text;
+  if (state.exporting) text = state.exportText || 'exporting';
+  else if (state.calibrating) text = 'fitting · drag the pins onto the mask, then apply';
+  else if (!tracker) text = els.status.textContent;
+  else if (!state.kind) text = 'ready · open a video or start the camera';
+  else {
+    const what = !t.length ? 'nobody in frame'
+      : lost ? (stage.settings.strict ? 'head lost · picture hidden' : 'head lost · holding the mask')
+        : body ? 'following the head from the body'
+          : t.length > 1 ? `${t.length} faces locked` : 'face locked';
+    text = `${what} · ${state.fps.toFixed(0)} fps · ${stage.w} × ${stage.h}`;
+  }
+  els.status.textContent = text;
+}
+
 // ---------------------------------------------------------------- frames
-
-function setChip(stateName, text) {
-  els.chipState.dataset.state = stateName;
-  els.chipState.textContent = text;
-}
-
-function describe(tracks) {
-  if (state.exporting) return setChip('busy', 'Exporting');
-  if (state.calibrating) return setChip('busy', 'Fitting');
-  if (!state.kind) return setChip('idle', 'Ready');
-  if (!tracks.length) return setChip('idle', 'Nobody in frame');
-  if (tracks.some((t) => t.state === HOLD)) return setChip('hold', stage.settings.strict ? 'Head lost: picture hidden' : 'Head lost: holding mask');
-  if (tracks.some((t) => t.state === BODY)) return setChip('body', 'Following head from body');
-  return setChip('face', tracks.length > 1 ? `${tracks.length} faces locked` : 'Face locked');
-}
 
 /** One frame: copy it, track it, mask it, show it. Nothing is shown before the last step. */
 function tick() {
@@ -192,10 +219,8 @@ function tick() {
 
   if (state.lastFrameAt) state.fps += (1000 / (now - state.lastFrameAt) - state.fps) * 0.1;
   state.lastFrameAt = now;
-  describe(state.tracks);
-  els.chipPerf.hidden = false;
-  els.chipPerf.textContent = `${state.fps.toFixed(0)} fps · ${(performance.now() - now).toFixed(0)} ms`;
-  if (state.kind === 'file' && !state.scrubbing) updateTransport();
+  describe();
+  if (state.kind === 'file' && !state.scrubbing) updateScrub();
 }
 
 function redraw() {
@@ -235,14 +260,24 @@ function stopSource() {
   tracker?.reset();
 }
 
+function setMirror(on) {
+  stage.settings.mirror = on;
+  setPressed(els.mirror, on);
+  redraw();
+}
+
 function sourceReady(kind) {
   state.kind = kind;
   els.empty.hidden = true;
-  els.transport.hidden = kind !== 'file';
-  els.exportBtn.disabled = kind !== 'file';
-  els.record.disabled = false;
-  els.camera.textContent = kind === 'camera' ? 'Stop camera' : 'Start camera';
-  stage.settings.mirror = els.mirror.checked = kind === 'camera';
+  els.out.hidden = false;
+  els.scrubrow.hidden = kind !== 'file';
+  for (const k of exportKeys) k.disabled = kind !== 'file';
+  for (const k of recordKeys) k.disabled = false;
+  els.pause.disabled = false;
+  els.pause.textContent = 'Ⅱ pause';
+  els.camera.textContent = kind === 'camera' ? 'stop camera' : 'camera';
+  setPressed(els.camera, false);
+  setMirror(kind === 'camera'); // a camera is a mirror; a video is as it was filmed
   startLoop();
 }
 
@@ -254,7 +289,8 @@ async function startCamera(deviceId) {
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }) },
     });
   } catch (err) {
-    setChip('hold', err.name === 'NotAllowedError' ? 'Camera permission refused' : 'No camera available');
+    toast(err.name === 'NotAllowedError' ? 'the browser refused the camera. allow it for this page and try again' : 'no camera found');
+    stopCamera();
     return;
   }
   els.video.srcObject = state.stream;
@@ -262,20 +298,22 @@ async function startCamera(deviceId) {
   await els.video.play().catch(() => {});
   sourceReady('camera');
   const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-  els.cameraField.hidden = cams.length < 2;
+  els.cameraSelect.hidden = cams.length < 2;
   const active = state.stream.getVideoTracks()[0]?.getSettings().deviceId;
-  els.cameraSelect.replaceChildren(...cams.map((d, i) => new Option(d.label || `Camera ${i + 1}`, d.deviceId, false, d.deviceId === active)));
+  els.cameraSelect.replaceChildren(...cams.map((d, i) => new Option((d.label || `camera ${i + 1}`).toLowerCase(), d.deviceId, false, d.deviceId === active)));
 }
 
 function stopCamera() {
   stopSource();
   state.kind = null;
   els.empty.hidden = false;
-  els.cameraField.hidden = true;
-  els.camera.textContent = 'Start camera';
-  els.record.disabled = true;
-  describe([]);
-  els.chipPerf.hidden = true;
+  els.out.hidden = true;
+  els.cameraSelect.hidden = true;
+  els.scrubrow.hidden = true;
+  els.camera.textContent = 'camera';
+  els.pause.disabled = true;
+  for (const k of [...recordKeys, ...exportKeys]) k.disabled = true;
+  describe();
 }
 
 async function openFile(file) {
@@ -285,123 +323,147 @@ async function openFile(file) {
   v.src = URL.createObjectURL(file);
   v.loop = true;
   v.muted = true;
-  els.sound.textContent = 'Sound off';
-  els.cameraField.hidden = true;
+  setPressed(els.sound, false);
+  els.cameraSelect.hidden = true;
   try {
     await new Promise((resolve, reject) => {
       v.addEventListener('loadeddata', resolve, { once: true });
-      v.addEventListener('error', () => reject(new Error('This browser cannot play that video file.')), { once: true });
+      v.addEventListener('error', () => reject(new Error(`this browser cannot play ${file.name}. try an mp4 or webm`)), { once: true });
     });
   } catch (err) {
-    state.kind = null;
-    setChip('hold', err.message);
+    stopCamera();
+    toast(err.message);
     return;
   }
   sourceReady('file');
   await v.play().catch(() => {});
-  els.play.textContent = '❚❚';
-  els.saveNote.textContent = 'Export reads the file frame by frame, so every frame is masked however slow the computer is.';
 }
 
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-function updateTransport() {
+function updateScrub() {
   const v = els.video;
   if (!Number.isFinite(v.duration)) return;
   els.scrub.value = String(Math.round((v.currentTime / v.duration) * 1000));
-  els.time.textContent = `${clock(v.currentTime)} / ${clock(v.duration)}`;
+  paintRange(els.scrub);
+  els.time.textContent = clock(v.currentTime);
+  els.duration.textContent = clock(v.duration);
+}
+
+function togglePause() {
+  const v = els.video;
+  if (!state.kind || state.exporting || state.calibrating) return;
+  if (v.paused) { v.play().catch(() => {}); els.pause.textContent = 'Ⅱ pause'; } else { v.pause(); els.pause.textContent = '▶ play'; }
+  describe();
 }
 
 // ---------------------------------------------------------------- saving
 
+function showRecording(on) {
+  for (const k of recordKeys) {
+    k.classList.toggle('recording', on);
+    k.querySelector('.label').textContent = on ? 'stop' : 'record';
+  }
+  describe();
+}
+
 async function toggleRecord() {
+  if (!state.kind || state.exporting) return;
   if (state.recorder) {
     const rec = state.recorder;
     state.recorder = null;
-    els.record.textContent = 'Record';
-    els.record.classList.remove('on');
+    showRecording(false);
     const res = await rec.stop();
     saveBlob(res.blob, res.filename);
-    els.saveNote.textContent = `Saved ${res.filename}: ${res.frames} frames${res.skipped ? `, ${res.skipped} left out because the encoder was busy (all saved frames are masked)` : ''}.`;
+    toast(`saved ${res.filename}`);
+    els.saveNote.textContent = `saved ${res.filename}: ${res.seconds.toFixed(1)} s at ${res.fps} frames a second, every frame masked`;
     return;
   }
   try {
     state.recorder = await LiveRecorder.start(els.out);
-    els.record.textContent = 'Stop recording';
-    els.record.classList.add('on');
-    els.saveNote.textContent = 'Recording the picture as you see it. No sound is recorded.';
+    showRecording(true);
+    els.saveNote.textContent = 'recording the picture as you see it, without sound. press record again to stop';
   } catch (err) {
-    els.saveNote.textContent = err.message;
+    toast(err.message);
   }
 }
 
 let exportAbort = null;
 async function runExport() {
-  if (!state.file || state.exporting) return;
+  if (!state.file || state.kind !== 'file' || state.exporting) return;
   if (state.recorder) await toggleRecord();
   const v = els.video;
   const wasPlaying = !v.paused;
   v.pause();
   state.exporting = true;
+  state.exportText = 'exporting · reading the file';
   exportAbort = new AbortController();
-  els.progress.hidden = false;
-  els.exportBtn.disabled = true;
-  els.record.disabled = true;
-  els.transport.hidden = true;
-  describe([]);
+  els.meter.hidden = false;
+  els.exportBusy.hidden = false;
+  els.scrubrow.hidden = true;
+  els.pause.disabled = true;
+  for (const k of [...exportKeys, ...recordKeys]) k.disabled = true;
+  describe();
   const started = performance.now();
   try {
     const res = await exportFile(state.file, {
-      tracker, stage, keepAudio: els.keepAudio.checked, signal: exportAbort.signal,
+      tracker, stage, keepAudio: pressed(els.keepAudio), signal: exportAbort.signal,
       onProgress: (p, frames) => {
-        els.progressFill.style.width = `${(p * 100).toFixed(1)}%`;
-        els.progressText.textContent = `${Math.round(p * 100)}% · ${frames} frames`;
+        els.meterFill.style.width = `${(p * 100).toFixed(1)}%`;
+        state.exportText = `exporting ${Math.round(p * 100)}% · ${frames} frames`;
+        describe();
       },
     });
     saveBlob(res.blob, res.filename);
     const held = res.log.filter((f) => f.hidden).length;
     const body = res.log.filter((f) => f.states.includes(BODY)).length;
     const secs = ((performance.now() - started) / 1000).toFixed(0);
-    els.saveNote.textContent = `Saved ${res.filename}: ${res.frames} frames in ${secs} s, every one masked before it was written.`
-      + (body ? ` On ${body} the face could not be read and the mask followed the head from the body.` : '')
-      + (held ? ` On ${held} the head was lost and the whole picture was hidden.` : '')
-      + (els.keepAudio.checked && res.hadAudio && !res.audioKept ? ' The sound could not be carried into this file format.' : '');
+    toast(`saved ${res.filename}`);
+    els.saveNote.textContent = `saved ${res.filename}: ${res.frames} frames in ${secs} s, each masked before it was written.`
+      + (body ? ` on ${body} the face could not be read and the mask followed the head from the body.` : '')
+      + (held ? ` on ${held} a head was lost and the whole picture was hidden.` : '')
+      + (pressed(els.keepAudio) && res.hadAudio && !res.audioKept ? ' the sound could not be carried into this file.' : '')
+      + ' watch it through before you publish it';
     window.__lastExport = res;
   } catch (err) {
-    els.saveNote.textContent = exportAbort.signal.aborted ? 'Export cancelled.' : `Export failed: ${err.message}`;
-    if (!exportAbort.signal.aborted) console.error(err);
+    const cancelled = exportAbort.signal.aborted;
+    els.saveNote.textContent = cancelled ? 'export cancelled. nothing was saved' : `export failed: ${err.message}`;
+    toast(cancelled ? 'export cancelled' : `export failed: ${err.message}`);
+    if (!cancelled) console.error(err);
   } finally {
     state.exporting = false;
     exportAbort = null;
-    els.progress.hidden = true;
-    els.progressFill.style.width = '0';
-    els.exportBtn.disabled = false;
-    els.record.disabled = false;
-    els.transport.hidden = false;
+    els.meter.hidden = true;
+    els.meterFill.style.width = '0';
+    els.exportBusy.hidden = true;
+    els.scrubrow.hidden = false;
+    els.pause.disabled = false;
+    for (const k of [...exportKeys, ...recordKeys]) k.disabled = false;
     state.lastFrameAt = 0;
     if (wasPlaying) v.play().catch(() => {}); else tick();
+    describe();
   }
 }
 
 // ---------------------------------------------------------------- fit by points
 
-const ANCHOR_KEYS = ['rightEye', 'leftEye', 'mouth'];
-const anchorAt = {}; // key -> { x, y } as fractions of the picture
+const PIN_KEYS = ['rightEye', 'leftEye', 'mouth'];
+const pinAt = {}; // key -> { x, y } as fractions of the picture
 let calibSlot = null;
 const _ray = new THREE.Raycaster();
 const _v = new THREE.Vector3();
 
 function pictureRect() {
-  const r = els.out.getBoundingClientRect(), host = els.stage.getBoundingClientRect();
+  const r = els.out.getBoundingClientRect(), host = els.monitor.getBoundingClientRect();
   const ar = els.out.width / els.out.height;
   let w = r.width, h = r.height;
   if (w / h > ar) w = h * ar; else h = w / ar;
-  return { left: r.left - host.left + (r.width - w) / 2, top: r.top - host.top + (r.height - h) / 2, width: w, height: h };
+  return { left: r.left - host.left + (r.width - w) / 2, top: r.top - host.top + (r.height - h) / 2, width: w, height: h, host };
 }
 
-function placeAnchors() {
+function placePins() {
   const rect = pictureRect();
-  for (const el of els.anchors.children) {
-    const a = anchorAt[el.dataset.key];
+  for (const el of els.pins.children) {
+    const a = pinAt[el.dataset.key];
     el.style.left = `${rect.left + a.x * rect.width}px`;
     el.style.top = `${rect.top + a.y * rect.height}px`;
   }
@@ -409,34 +471,37 @@ function placeAnchors() {
 
 function drawCalibration() {
   calibSlot = stage.renderCalibration();
-  placeAnchors();
+  placePins();
 }
 
 function startCalibration() {
-  if (state.exporting) return;
+  if (state.exporting || state.calibrating) return;
   els.video.pause();
   state.calibrating = true;
-  els.anchors.hidden = false;
-  els.calibBar.hidden = false;
-  els.transport.hidden = true;
+  els.pins.hidden = false;
+  els.fitbar.hidden = false;
+  els.scrubrow.hidden = true;
   els.empty.hidden = true;
+  els.out.hidden = false;
+  showGuide(false);
   calibSlot = stage.renderCalibration();
-  // start each dot where the wearer's own feature is, seen through the mask at its present fit
-  for (const key of ANCHOR_KEYS) {
+  // start each pin where the wearer's own feature is, seen through the mask at its present fit
+  for (const key of PIN_KEYS) {
     _v.set(...CANON[key]).applyMatrix4(calibSlot.root.matrix).project(stage.camera);
-    anchorAt[key] = { x: (_v.x + 1) / 2, y: (1 - _v.y) / 2 };
+    pinAt[key] = { x: (_v.x + 1) / 2, y: (1 - _v.y) / 2 };
   }
-  placeAnchors();
-  describe([]);
+  placePins();
+  describe();
 }
 
 function endCalibration(apply) {
+  if (!state.calibrating) return;
   if (apply && calibSlot) {
     calibSlot.root.updateMatrixWorld(true);
     const toMask = new THREE.Matrix4().copy(calibSlot.fit.matrixWorld).invert();
     const p = {}, q = {};
-    for (const key of ANCHOR_KEYS) {
-      const a = anchorAt[key];
+    for (const key of PIN_KEYS) {
+      const a = pinAt[key];
       _ray.setFromCamera(new THREE.Vector2(a.x * 2 - 1, 1 - a.y * 2), stage.camera);
       const hit = _ray.intersectObject(calibSlot.fit, true)[0];
       const world = hit ? hit.point.clone() : (() => {
@@ -467,68 +532,82 @@ function endCalibration(apply) {
   state.calibrating = false;
   calibSlot = null;
   stage.endCalibration();
-  els.anchors.hidden = true;
-  els.calibBar.hidden = true;
-  els.transport.hidden = state.kind !== 'file';
+  els.pins.hidden = true;
+  els.fitbar.hidden = true;
+  els.scrubrow.hidden = state.kind !== 'file';
   els.empty.hidden = !!state.kind;
+  els.out.hidden = !state.kind;
   applyFit();
-  describe(state.tracks);
-  if (state.kind === 'file') els.video.play().catch(() => {});
+  if (state.kind) els.video.play().catch(() => {});
+  els.pause.textContent = 'Ⅱ pause';
+  describe();
 }
 
-for (const el of els.anchors.children) {
+for (const el of els.pins.children) {
   el.addEventListener('pointerdown', (e) => {
     el.setPointerCapture(e.pointerId);
     const move = (ev) => {
-      const rect = pictureRect(), host = els.stage.getBoundingClientRect();
-      anchorAt[el.dataset.key] = {
-        x: THREE.MathUtils.clamp((ev.clientX - host.left - rect.left) / rect.width, 0, 1),
-        y: THREE.MathUtils.clamp((ev.clientY - host.top - rect.top) / rect.height, 0, 1),
+      const rect = pictureRect();
+      pinAt[el.dataset.key] = {
+        x: THREE.MathUtils.clamp((ev.clientX - rect.host.left - rect.left) / rect.width, 0, 1),
+        y: THREE.MathUtils.clamp((ev.clientY - rect.host.top - rect.top) / rect.height, 0, 1),
       };
-      placeAnchors();
+      placePins();
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', () => el.removeEventListener('pointermove', move), { once: true });
   });
-  // arrow keys nudge a dot, for fine placement and for keyboards
+  // arrow keys nudge a pin, for fine placement and for keyboards
   el.addEventListener('keydown', (e) => {
     const step = e.shiftKey ? 0.02 : 0.004;
-    const a = anchorAt[el.dataset.key];
+    const a = pinAt[el.dataset.key];
     if (e.key === 'ArrowLeft') a.x -= step; else if (e.key === 'ArrowRight') a.x += step;
     else if (e.key === 'ArrowUp') a.y -= step; else if (e.key === 'ArrowDown') a.y += step; else return;
     e.preventDefault();
-    placeAnchors();
+    placePins();
   });
 }
 
 // ---------------------------------------------------------------- controls
 
-function bindSetting(el, key, read = (e) => e.value) {
-  el.addEventListener('input', () => {
-    stage.settings[key] = read(el);
-    if (key in prefs) { prefs[key] = stage.settings[key]; store.save('prefs', prefs); }
-    redraw();
-  });
+function setMode(mode) {
+  document.body.dataset.mode = mode;
+  setSeg(els.mode, mode);
+  savePref('mode', mode);
+  requestAnimationFrame(() => { if (state.calibrating) placePins(); });
 }
-bindSetting(els.underlay, 'underlay');
-bindSetting(els.margin, 'margin', (e) => Number(e.value));
-bindSetting(els.strict, 'strict', (e) => e.checked);
-els.strict.addEventListener('input', () => { if (tracker) tracker.failClosed = els.strict.checked; });
-bindSetting(els.look, 'look');
-bindSetting(els.mirror, 'mirror', (e) => e.checked);
-bindSetting(els.guide, 'showGuide', (e) => e.checked);
-bindSetting(els.landmarks, 'showLandmarks', (e) => e.checked);
-bindSetting(els.showMask, 'showMask', (e) => e.checked);
+bindSeg(els.mode, setMode);
 
+function showGuide(on) {
+  els.guide.hidden = !on;
+  els.guideKey.setAttribute('aria-expanded', String(on));
+}
+els.guideKey.addEventListener('click', () => showGuide(els.guide.hidden));
+els.guideClose.addEventListener('click', () => showGuide(false));
+
+bindSeg(els.underlay, (v) => { stage.settings.underlay = v; savePref('underlay', v); redraw(); });
+bindToggle(els.strict, (on) => { stage.settings.strict = on; if (tracker) tracker.failClosed = on; savePref('strict', on); redraw(); });
+bindToggle(els.showMask, (on) => { stage.settings.showMask = on; savePref('showMask', on); redraw(); });
+bindToggle(els.mirror, (on) => { stage.settings.mirror = on; redraw(); });
+bindToggle(els.guideHead, (on) => { stage.settings.showGuide = on; redraw(); });
+bindToggle(els.landmarks, (on) => { stage.settings.showLandmarks = on; redraw(); });
+bindToggle(els.keepAudio, (on) => savePref('keepAudio', on));
+bindToggle(els.sound, (on) => { els.video.muted = !on; });
+
+els.margin.addEventListener('input', () => {
+  stage.settings.margin = Number(els.margin.value);
+  els.marginVal.textContent = stage.settings.margin.toFixed(2);
+  savePref('margin', stage.settings.margin);
+  redraw();
+});
+els.look.addEventListener('input', () => { stage.settings.look = els.look.value; savePref('look', els.look.value); redraw(); });
 els.people.addEventListener('change', async () => {
-  prefs.people = Number(els.people.value);
-  store.save('prefs', prefs);
+  savePref('people', Number(els.people.value));
   await tracker?.setMaxPeople(prefs.people);
 });
-els.keepAudio.addEventListener('change', () => { prefs.keepAudio = els.keepAudio.checked; store.save('prefs', prefs); });
 
 for (const b of [els.camera, els.emptyCamera]) b.addEventListener('click', () => (state.kind === 'camera' ? stopCamera() : startCamera()));
-for (const b of [els.file, els.emptyFile]) b.addEventListener('click', () => els.fileInput.click());
+for (const b of openKeys) b.addEventListener('click', () => els.fileInput.click());
 els.fileInput.addEventListener('change', () => { if (els.fileInput.files[0]) openFile(els.fileInput.files[0]); els.fileInput.value = ''; });
 els.cameraSelect.addEventListener('change', () => startCamera(els.cameraSelect.value));
 els.importBtn.addEventListener('click', () => els.glbInput.click());
@@ -536,28 +615,22 @@ els.glbInput.addEventListener('change', () => { if (els.glbInput.files[0]) impor
 
 els.fitReset.addEventListener('click', () => { fits[currentMask().id] = { ...IDENTITY_FIT }; applyFit(); });
 els.fitPoints.addEventListener('click', startCalibration);
-els.calibApply.addEventListener('click', () => endCalibration(true));
-els.calibCancel.addEventListener('click', () => endCalibration(false));
+els.fitApply.addEventListener('click', () => endCalibration(true));
+els.fitCancel.addEventListener('click', () => endCalibration(false));
 
-els.record.addEventListener('click', toggleRecord);
-els.exportBtn.addEventListener('click', runExport);
+els.pause.addEventListener('click', togglePause);
+for (const k of recordKeys) k.addEventListener('click', toggleRecord);
+for (const k of exportKeys) k.addEventListener('click', runExport);
 els.exportCancel.addEventListener('click', () => exportAbort?.abort());
 
-els.play.addEventListener('click', () => {
-  const v = els.video;
-  if (v.paused) { v.play(); els.play.textContent = '❚❚'; } else { v.pause(); els.play.textContent = '▶'; }
-});
-els.sound.addEventListener('click', () => {
-  els.video.muted = !els.video.muted;
-  els.sound.textContent = els.video.muted ? 'Sound off' : 'Sound on';
-  els.sound.setAttribute('aria-pressed', String(!els.video.muted));
-});
 els.scrub.addEventListener('input', () => {
   const v = els.video;
   state.scrubbing = true;
   if (Number.isFinite(v.duration)) v.currentTime = (Number(els.scrub.value) / 1000) * v.duration;
 });
 els.scrub.addEventListener('change', () => { state.scrubbing = false; });
+// the place in the video is not a setting: a right-click here does nothing rather than jump to the start
+els.scrub.addEventListener('contextmenu', (e) => e.preventDefault());
 els.video.addEventListener('seeked', () => {
   if (state.manual) return; // a test is stepping the frames itself
   // a jump in time: nobody carries over, and a paused video still needs its new frame masked
@@ -567,34 +640,45 @@ els.video.addEventListener('seeked', () => {
 });
 
 // drop a video to open it, or a .glb to add it as a mask
-window.addEventListener('dragover', (e) => { e.preventDefault(); els.stage.classList.add('over'); });
-window.addEventListener('dragleave', () => els.stage.classList.remove('over'));
+window.addEventListener('dragover', (e) => { e.preventDefault(); els.monitor.classList.add('over'); });
+window.addEventListener('dragleave', () => els.monitor.classList.remove('over'));
 window.addEventListener('drop', (e) => {
   e.preventDefault();
-  els.stage.classList.remove('over');
+  els.monitor.classList.remove('over');
   const f = e.dataTransfer?.files?.[0];
-  if (!f || !tracker) return;
+  if (!f) return;
+  if (!tracker) { toast('the tracker is still loading. drop it again in a moment'); return; }
   if (/\.glb$/i.test(f.name)) importGlb(f); else openFile(f);
 });
-window.addEventListener('resize', () => { if (state.calibrating) placeAnchors(); });
+window.addEventListener('resize', () => { if (state.calibrating) placePins(); });
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && state.kind === 'file' && !/^(INPUT|SELECT|BUTTON|TEXTAREA)$/.test(e.target.tagName)) {
+  if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  const key = e.key.toLowerCase();
+  if (e.code === 'Space') {
+    if (e.target.tagName === 'BUTTON') return; // Space presses the key that has the focus
     e.preventDefault();
-    els.play.click();
-  }
+    togglePause();
+  } else if (key === 'e') runExport();
+  else if (key === 'r') toggleRecord();
+  else if (key === 'm') { if (state.kind) setMirror(!stage.settings.mirror); }
+  else if (key === 'f') document.querySelector('[data-action=fullscreen]').click();
+  else if (key === 'escape') { if (state.calibrating) endCalibration(false); else showGuide(false); }
 });
 
 // ---------------------------------------------------------------- start
 
 async function init() {
   Object.assign(stage.settings, { underlay: prefs.underlay, margin: prefs.margin, strict: prefs.strict, look: prefs.look, showMask: prefs.showMask });
-  els.underlay.value = prefs.underlay;
+  setSeg(els.underlay, prefs.underlay);
+  setPressed(els.strict, prefs.strict);
+  setPressed(els.showMask, prefs.showMask);
+  setPressed(els.keepAudio, prefs.keepAudio);
   els.margin.value = prefs.margin;
-  els.strict.checked = prefs.strict;
+  paintRange(els.margin);
+  els.marginVal.textContent = Number(prefs.margin).toFixed(2);
   els.look.value = prefs.look;
   els.people.value = String(prefs.people);
-  els.keepAudio.checked = prefs.keepAudio;
-  els.showMask.checked = prefs.showMask;
+  setMode(prefs.mode === 'console' ? 'console' : 'easy');
 
   for (const saved of await store.savedMasks()) {
     try { masks.push(await loadGlbMask(saved.buffer, saved.name, saved.id)); } catch (err) { console.warn('[mask-layer] saved mask unreadable:', saved.name, err); }
@@ -604,23 +688,26 @@ async function init() {
   try {
     // ?delegate=cpu and ?pose=lite are for testing and for slow machines
     const query = new URLSearchParams(location.search);
-    const delegate = query.get('delegate') === 'cpu' ? 'CPU' : 'GPU';
-    const lm = await createLandmarkers({ maxPeople: prefs.people, delegate, pose: query.get('pose') === 'lite' ? 'lite' : 'full' });
+    const lm = await createLandmarkers({
+      maxPeople: prefs.people,
+      delegate: query.get('delegate') === 'cpu' ? 'CPU' : 'GPU',
+      pose: query.get('pose') === 'lite' ? 'lite' : 'full',
+    });
     tracker = new HeadTracker(lm);
     tracker.maxPeople = prefs.people;
     tracker.failClosed = prefs.strict;
-    els.engine.textContent = `Tracker: MediaPipe on ${lm.delegate}. Models: ${lm.localModels ? 'served from this app' : 'fetched from storage.googleapis.com (run “npm run assets” to keep them local)'}.`;
+    els.engine.textContent = `tracker: mediapipe on ${lm.delegate.toLowerCase()} · models ${lm.localModels ? 'served from this page' : 'fetched from storage.googleapis.com'}`;
   } catch (err) {
     console.error(err);
-    setChip('hold', 'Tracker failed to load');
-    els.engine.textContent = String(err.message || err);
+    els.status.textContent = 'the tracker did not load. reload the page; if it persists, try chrome or edge';
+    els.engine.textContent = String(err.message || err).toLowerCase();
     return;
   }
-  for (const b of [els.camera, els.file, els.emptyCamera, els.emptyFile]) b.disabled = false;
+  for (const b of [...openKeys, els.camera, els.emptyCamera]) b.disabled = false;
   if (!navigator.mediaDevices?.getUserMedia) { els.camera.disabled = true; els.emptyCamera.disabled = true; }
-  describe([]);
+  describe();
   // for the test scripts and for poking at from the console
-  window.__maskLayer = { stage, tracker, state, openFile, startCamera, runExport, selectMask, startCalibration, endCalibration, anchorAt, createLandmarkers, FACE_OVAL };
+  window.__maskLayer = { stage, tracker, state, openFile, startCamera, runExport, selectMask, startCalibration, endCalibration, pinAt, createLandmarkers, FACE_OVAL, FACE, BODY, HOLD };
 }
 
 init();

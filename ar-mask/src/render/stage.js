@@ -56,7 +56,7 @@ export class Stage {
 
     this.settings = {
       underlay: 'pixelate', // 'pixelate' | 'solid' | 'blur' | 'off'
-      underlayColor: '#241c33',
+      underlayColor: '#0b0b0c',
       margin: 1,
       strict: true,
       mirror: false,
@@ -68,9 +68,51 @@ export class Stage {
     this.fit = { ...IDENTITY_FIT };
     this.maskDef = null;
     this.slots = new Map(); // track id -> slot
+    /** Colours drawn into the picture. The page hands over the family's tokens with setPalette(). */
+    this.palette = { accent: '#39ff88', accent2: '#b36bff', stage: '#0b0b0c' };
     this.time = 0;
     /** What the last frame did, for the status line and for tests. */
     this.report = { heads: 0, hidden: false };
+  }
+
+  /** @param {{ accent: string, accent2: string, stage: string }} palette green, violet and the stage colour */
+  setPalette(palette) {
+    this.palette = { ...this.palette, ...Object.fromEntries(Object.entries(palette).filter(([, v]) => v)) };
+    this.settings.underlayColor = this.palette.stage;
+    for (const slot of this.slots.values()) slot.guide.material.color.set(this.palette.accent2);
+  }
+
+  /**
+   * A small picture of a mask on its own, for the list of masks.
+   * @returns {string} a PNG data URL with a clear background
+   */
+  thumbnail(def, size = 176) {
+    const made = def.create();
+    made.update?.({ dt: 0, time: 0, blend: {}, state: FACE, angVel: _v.set(0, 0, 0) });
+    const holder = new THREE.Group();
+    holder.add(made.object);
+    holder.rotation.y = -0.35; // a little to one side, so horns and depth show
+    holder.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(holder);
+    const centre = box.getCenter(new THREE.Vector3());
+    const span = box.getSize(new THREE.Vector3());
+    const cam = new THREE.PerspectiveCamera(28, 1, 1, 4000);
+    const dist = (Math.max(span.x, span.y) / 2 / Math.tan((14 * Math.PI) / 180)) * 1.08 + span.z / 2;
+    cam.position.set(centre.x, centre.y + dist * 0.06, centre.z + dist);
+    cam.lookAt(centre);
+    const hidden = [...this.slots.values()].map((slot) => slot.root).filter((root) => root.visible);
+    for (const root of hidden) root.visible = false;
+    this.scene.add(holder);
+    this.renderer.setSize(size, size, false);
+    this.renderer.render(this.scene, cam);
+    const out = document.createElement('canvas');
+    out.width = out.height = size;
+    out.getContext('2d').drawImage(this.gl, 0, 0);
+    this.scene.remove(holder);
+    for (const root of hidden) root.visible = true;
+    made.dispose?.();
+    this.renderer.setSize(this.w || this.out.width, this.h || this.out.height, false);
+    return out.toDataURL('image/png');
   }
 
   setSize(w, h) {
@@ -124,7 +166,7 @@ export class Stage {
     root.add(fit);
     const mask = this.maskDef ? this.maskDef.create() : null;
     if (mask) fit.add(mask.object);
-    const guide = makeGuide();
+    const guide = makeGuide(this.palette.accent2);
     root.add(guide);
     this.scene.add(root);
     slot = { root, fit, mask, guide, lastQuat: null, angVel: new THREE.Vector3() };
@@ -192,7 +234,7 @@ export class Stage {
     octx.drawImage(this.gl, 0, 0, w, h);
 
     if (settings.showLandmarks) {
-      octx.fillStyle = 'rgba(140, 255, 220, 0.9)';
+      octx.fillStyle = this.palette.accent;
       for (const t of tracks) {
         if (!t.landmarks) continue;
         for (const p of t.landmarks) octx.fillRect(p.x * w - 1, p.y * h - 1, 2, 2);
@@ -288,7 +330,7 @@ export class Stage {
     this.renderer.render(this.scene, this.camera);
     for (const other of this.slots.values()) other.root.visible = true;
     octx.save();
-    octx.fillStyle = '#17131f';
+    octx.fillStyle = this.palette.stage;
     octx.fillRect(0, 0, w, h);
     octx.drawImage(this.gl, 0, 0, w, h);
     octx.restore();
@@ -329,9 +371,9 @@ export class Stage {
   }
 }
 
-function makeGuide() {
+function makeGuide(color) {
   const geo = new THREE.WireframeGeometry(new THREE.SphereGeometry(1, 14, 10));
-  const guide = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.55, depthTest: false }));
+  const guide = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, depthTest: false }));
   guide.position.set(...HEAD_PROXY.center);
   guide.scale.set(...HEAD_PROXY.radii);
   guide.renderOrder = 10;

@@ -27,6 +27,12 @@ async function pickFormat(width, height) {
 }
 
 const even = (n) => Math.max(2, Math.round(n / 2) * 2);
+const STANDARD_RATES = [12, 15, 24000 / 1001, 24, 25, 30000 / 1001, 30, 48, 50, 60000 / 1001, 60, 120];
+function steadyRate(measured) {
+  if (!(measured > 0)) return 30;
+  for (const r of STANDARD_RATES) if (Math.abs(measured - r) / r < 0.01) return r;
+  return Math.round(measured * 100) / 100;
+}
 const pause = () => new Promise((r) => setTimeout(r, 0));
 
 /**
@@ -46,6 +52,9 @@ export async function exportFile(file, { tracker, stage, keepAudio = true, onPro
   if (!video) throw new Error('No video track found in this file.');
   const W = even(video.displayWidth), H = even(video.displayHeight);
   const { codec, format } = await pickFormat(W, H);
+  // A constant frame rate out, whatever went in: the source's own rate, snapped to a standard one when it is
+  // within one percent of it. A file that already runs at a steady rate comes out frame for frame.
+  const frameRate = steadyRate((await video.computePacketStats(240)).averagePacketRate);
   const output = new Output({ format, target: new BufferTarget() });
 
   // The body tracker runs on every frame here: there is time, and it is what covers a head the face tracker loses.
@@ -64,6 +73,7 @@ export async function exportFile(file, { tracker, stage, keepAudio = true, onPro
       codec,
       quality: QUALITY_HIGH,
       forceTranscode: true,
+      frameRate,
       allowTransformationMetadata: false, // phone videos: turn the frames upright before tracking
       processedWidth: W,
       processedHeight: H,
@@ -99,44 +109,57 @@ export async function exportFile(file, { tracker, stage, keepAudio = true, onPro
   return {
     blob: new Blob([output.target.buffer], { type: format.mimeType }),
     filename: `${stem}-masked${format.fileExtension}`,
-    frames, hadAudio, audioKept, codec, log,
+    frames, frameRate, hadAudio, audioKept, codec, log,
   };
 }
 
-/** Records the output canvas as it is drawn: call frame() after each finished picture. */
+/**
+ * Records the output canvas as it is drawn: call frame() after each finished picture.
+ * The file runs at a constant 30 frames a second. Each finished picture goes into the next free slot of that
+ * grid; when pictures come slower than the grid, the newest one also fills the slots that were waiting for it.
+ */
 export class LiveRecorder {
-  static async start(canvas) {
+  static async start(canvas, fps = 30) {
     const { codec, format } = await pickFormat(even(canvas.width), even(canvas.height));
     const rec = new LiveRecorder();
+    rec.fps = fps;
     rec.format = format;
     rec.output = new Output({ format, target: new BufferTarget() });
     rec.source = new CanvasSource(canvas, { codec, quality: QUALITY_HIGH, keyFrameInterval: 2, sizeChangeBehavior: 'contain' });
-    rec.output.addVideoTrack(rec.source);
+    rec.output.addVideoTrack(rec.source, { frameRate: fps });
     await rec.output.start();
     rec.t0 = null;
-    rec.busy = false;
-    rec.frames = 0;
-    rec.skipped = 0;
+    rec.next = 0; // the next slot to fill
+    rec.queue = Promise.resolve();
+    rec.pending = 0;
     return rec;
   }
 
-  frame(nowMs) {
+  frame(nowMs, last = false) {
     if (this.t0 == null) this.t0 = nowMs;
-    // If the encoder is still busy with the last frame, this one is left out of the file. That costs smoothness,
-    // never privacy: only finished, masked pictures are ever handed to the encoder.
-    if (this.busy) { this.skipped++; return; }
-    this.busy = true;
-    this.frames++;
-    this.source.add((nowMs - this.t0) / 1000).catch((err) => console.warn('[mask-layer] record:', err)).finally(() => { this.busy = false; });
+    const slot = Math.round(((nowMs - this.t0) / 1000) * this.fps);
+    // More than a second of pictures waiting on the encoder: let this one go by. The slots it would have filled
+    // are filled by the next picture, so the file keeps its rate, and only finished, masked pictures are ever
+    // handed to the encoder. The last picture is never let go by: it carries the file to the moment it was stopped.
+    if (slot < this.next || (this.pending > this.fps && !last)) return;
+    for (; this.next <= slot; this.next++) {
+      const t = this.next / this.fps;
+      this.pending++;
+      // the canvas is read when add() is called, so every slot written here holds this picture
+      const done = this.source.add(t, 1 / this.fps);
+      this.queue = this.queue.then(() => done).catch((err) => console.warn('[mask-layer] record:', err)).finally(() => { this.pending--; });
+    }
   }
 
   async stop() {
+    if (this.t0 != null) this.frame(performance.now(), true);
+    await this.queue;
     await this.output.finalize();
     const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
     return {
       blob: new Blob([this.output.target.buffer], { type: this.format.mimeType }),
-      filename: `mask-layer-${stamp}${this.format.fileExtension}`,
-      frames: this.frames, skipped: this.skipped,
+      filename: `mask-${stamp}${this.format.fileExtension}`,
+      frames: this.next, fps: this.fps, seconds: this.next / this.fps,
     };
   }
 }

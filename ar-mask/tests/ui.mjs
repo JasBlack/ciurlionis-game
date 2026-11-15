@@ -1,4 +1,5 @@
-// Drives the page the way a person would: import a .glb, open a video, fit by points. Saves pictures of each step.
+// Drives the page the way a person would: import a .glb, open a video, fit by points, reset a slider.
+// Saves pictures of each step.
 //   node tests/ui.mjs <video> <glb> <out folder>
 import { createRequire } from 'node:module';
 import { mkdir } from 'node:fs/promises';
@@ -15,23 +16,23 @@ await page.waitForFunction(() => window.__maskLayer, null, { timeout: 120000 });
 await page.screenshot({ path: `${outDir}/0-empty.png` });
 
 await page.setInputFiles('#glb-input', glb);
-await page.waitForFunction(() => document.querySelectorAll('.mask').length === 4);
-console.log('masks:', await page.$$eval('.mask', (els) => els.map((e) => e.innerText.replace(/\n+/g, ' | '))));
+await page.waitForFunction(() => document.querySelectorAll('.tile').length === 4);
+console.log('masks:', await page.$$eval('.tile', (els) => els.map((e) => e.innerText.trim())), '|', await page.textContent('#mask-hint'));
+console.log('mode after import:', await page.getAttribute('body', 'data-mode'));
 console.log('coverage:', await page.textContent('#coverage'));
 
 await page.setInputFiles('#file-input', video);
 await page.waitForFunction(() => window.__maskLayer.state.kind === 'file');
 await page.waitForTimeout(4000);
-await page.evaluate(() => document.querySelectorAll('details').forEach((d) => { d.open = true; }));
-await page.check('#landmarks');
+await page.click('#landmarks');
 await page.waitForTimeout(1500);
 await page.locator('#out').screenshot({ path: `${outDir}/1-glb-before-fit.png` });
 
 await page.click('#fit-points');
 await page.waitForTimeout(500);
 await page.screenshot({ path: `${outDir}/2-calibration.png` });
-const anchors = await page.$$eval('.anchor', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return { key: e.dataset.key, x: r.x + r.width / 2, y: r.y + r.height / 2 }; }));
-console.log('anchors at', JSON.stringify(anchors));
+const anchors = await page.$$eval('.pin', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return { key: e.dataset.key, x: r.x + r.width / 2, y: r.y + r.height / 2 }; }));
+console.log('pins at', JSON.stringify(anchors));
 // where the test head's painted eyes and mouth are in this view: project the model's own feature points
 const targets = await page.evaluate(() => {
   const { stage } = window.__maskLayer;
@@ -58,7 +59,7 @@ for (const a of anchors) {
   await page.mouse.up();
 }
 await page.screenshot({ path: `${outDir}/3-calibration-dragged.png` });
-await page.click('#calib-apply');
+await page.click('#fit-apply');
 console.log('fit after:', await page.evaluate(() => JSON.stringify(window.__maskLayer.stage.fit)));
 console.log('coverage:', await page.textContent('#coverage'));
 await page.waitForTimeout(4000);
@@ -69,6 +70,12 @@ console.log('morph:', await page.evaluate(() => {
   window.__maskLayer.stage.scene.traverse((o) => { if (o.isMesh && o.morphTargetInfluences) out.push(o.morphTargetInfluences.map((v) => Number(v.toFixed(3)))); });
   return JSON.stringify(out);
 }));
+// family rule: right-click any slider puts it back to its default, and no menu opens
+const size = page.locator('input[data-fit=scale]');
+await size.fill('1.8');
+const moved = await page.evaluate(() => window.__maskLayer.stage.fit.scale);
+const menu = await page.evaluate(() => { const el = document.querySelector('input[data-fit=scale]'); const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev.defaultPrevented; });
+console.log('slider: moved to', moved, '-> right-click ->', await page.evaluate(() => window.__maskLayer.stage.fit.scale), '| menu suppressed:', menu, '| readout:', await page.evaluate(() => document.querySelector('input[data-fit=scale]').closest('.control').querySelector('output').textContent));
 await page.setViewportSize({ width: 400, height: 800 });
 await page.waitForTimeout(800);
 await page.screenshot({ path: `${outDir}/5-phone.png`, fullPage: true });
