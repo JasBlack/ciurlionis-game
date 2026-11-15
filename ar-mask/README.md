@@ -9,31 +9,34 @@ the game's repository; it shares nothing with the game and is ready to be a repo
 
 ## Use it
 
-The four steps down the left are the whole job.
+Everything is on one screen: what goes in and out on the left, the picture in the middle, the fine controls on
+the right.
 
-1. **Source.** `open video`, or drop a video anywhere on the page, or start the `camera`. `mirror` flips the
-   picture left to right (on for a camera, off for a video).
-2. **Mask.** Pick one of the three, or drop a `.glb` head model on the page to add your own. Your own masks are
-   remembered in this browser. `show mask` off leaves only the cover.
-3. **Cover.** What hides the face itself under the mask: `pixels`, `paint`, `blur` or `none`. With a cover on, a
-   gap in a mask (an open mouth, a thin model, a poor fit) shows the cover, never skin. `hide picture if a head is
-   lost` hides everything whenever a head that was just there cannot be found.
-4. **Save.** `export video` writes the file again with a mask on every frame and carries the sound over (turn
-   `keep sound` off if your voice matters). `record` saves the picture as you see it, without sound. Both write
-   MP4 (H.264) at a constant frame rate.
+On the left:
+
+- **Source.** `open video`, or drop a video anywhere on the page, or start the `camera`. `mirror` flips the
+  picture left to right (on for a camera, off for a video).
+- **Mask.** Pick one of the three, or drop a `.glb` head model on the page to add your own. Your own masks are
+  remembered in this browser. `show mask` off leaves only the cover.
+- **Cover.** What hides the face itself under the mask: `pixels`, `paint`, `blur` or `none`. With a cover on, a
+  gap in a mask (an open mouth, a thin model, a poor fit) shows the cover, never skin. `hide picture if a head is
+  lost` hides everything whenever a head that was just there cannot be found.
+- **Save.** `export video` writes the file again with a mask on every frame and carries the sound over (turn
+  `keep sound` off if your voice matters). `record` saves the picture as you see it, without sound. Both write
+  MP4 (H.264) at a constant frame rate.
+
+On the right:
+
+- **Fit.** Size, place, turn and stretch of the mask, remembered per mask. Right-click a slider to put it back.
+  `fit by points` shows three pins where your own eyes and mouth sit behind the mask; drag each onto that part of
+  the mask and it is resized and moved to match. `head outline` draws a wire head, to see whether the mask
+  encloses it.
+- **Tracking.** How far the cover reaches past the face, how many people to cover, and the tracking points.
+- **Picture.** A look for the whole picture.
 
 The lights by the title: `live` is a source running; `lock` is green while the face is tracked and violet while
 the mask is following the head from the body (in profile, or turned away); `rec` is recording. The green line
 under the picture says the same in words.
-
-`console` (top left, beside `easy`) adds the column of every control:
-
-- **Fit**: size, place, turn and stretch of the mask, remembered per mask. Right-click a slider to put it back.
-  `fit by points` shows three pins where your own eyes and mouth sit behind the mask; drag each onto that part of
-  the mask and it is resized and moved to match. `head outline` draws a wire head, to see whether the mask
-  encloses it.
-- **Tracking**: how far the cover reaches past the face, how many people to cover, and the tracking points.
-- **Picture**: a look for the whole picture.
 
 Keys: `Space` pause, `E` export, `R` record, `M` mirror, `F` full screen. `guide` in the top bar is the short
 version of this section; the key beside it switches light and dark.
@@ -74,7 +77,7 @@ the edge.
   so two people who both turn away at once will often trip the whole-picture hide.
 - It hides the head. Voice, body, clothes, tattoos, the room and the file's metadata still identify people. Turn
   `keep sound` off if your voice matters.
-- **Watch every export through once before publishing it.** The note under step 4 says after an export on how
+- **Watch every export through once before publishing it.** The note under Save says after an export on how
   many frames the mask fell back to body tracking or the picture was hidden; those are the places to look.
 
 ## Making masks
@@ -100,7 +103,7 @@ shape of your face and disappears in profile, so it does not hide anyone.
    - Keep the head (and beard, horns, hair); cut below the chin. Close any holes: what is open shows the wearer.
    - Face it down the +Y axis in Blender's front view (so it faces +Z in the exported glTF), upright.
    - Aim for under 100,000 triangles and 2K textures; it is drawn every frame.
-   - Size does not matter: on import the model is scaled to head size, and Fit (in `console`) does the rest.
+   - Size does not matter: on import the model is scaled to head size, and Fit does the rest.
 4. **Expressions (optional).** Add shape keys with these exact names; the tracker reports the same 52 and any
    that are missing are simply not animated. The ones that carry most of a performance:
    `eyeBlinkLeft`, `eyeBlinkRight`, `jawOpen`, `browDownLeft`, `browDownRight`, `browInnerUp`,

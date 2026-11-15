@@ -30,17 +30,13 @@
 <meta name="twitter:description" content="Cover your face in any video or live feed with a tracked 3D mask.">
 <meta name="twitter:image" content="https://mask.jas.black/og.jpg">
 </head>
-<!-- A console-layout JAS.BLACK tool: title, easy | console and status lights, transport, view keys;
-     numbered steps on the left, the stage, every control on the right. -->
-<body data-ui="dark" data-tool="mask" data-version="0.2.0" data-mode="easy">
+<!-- A console-layout JAS.BLACK tool: title and status lights, transport, view keys;
+     source, mask, cover and save on the left, the stage, fit and tracking on the right. Always the full console. -->
+<body data-ui="dark" data-tool="mask" data-version="0.2.1">
 
 <header class="topbar">
   <div class="hl">
     <div class="brandbox on-grid"><span class="brand">MASK LAYER</span><span class="brand-ver"></span></div>
-    <div class="seg" role="group" aria-label="Controls" id="mode">
-      <button type="button" aria-pressed="true" data-value="easy" title="the guided steps">easy</button>
-      <button type="button" aria-pressed="false" data-value="console" title="every control">console</button>
-    </div>
     <div class="status on-grid" aria-label="Status lights">
       <span title="a camera or video is running"><i class="led" id="led-live"></i>live</span>
       <span title="green: face locked. violet: following the head from the body"><i class="led" id="led-lock"></i>lock</span>
@@ -60,9 +56,9 @@
 </header>
 
 <main class="console">
-  <aside class="column" id="steps">
+  <aside class="column" id="setup">
     <section class="panel">
-      <div class="panel-title"><b><i>1</i> source</b><span>what to cover</span></div>
+      <div class="panel-title"><b>source</b><span>what to cover</span></div>
       <button type="button" class="key primary wide" data-do="open" disabled>open video</button>
       <div class="keys-row">
         <button type="button" class="key" id="camera" disabled>camera</button>
@@ -74,7 +70,7 @@
     </section>
 
     <section class="panel">
-      <div class="panel-title"><b><i>2</i> mask</b><span>pick one</span></div>
+      <div class="panel-title"><b>mask</b><span>pick one</span></div>
       <div class="tiles" id="masks" role="radiogroup" aria-label="Mask"></div>
       <div class="keys-row">
         <button type="button" class="key" id="import">import .glb</button>
@@ -85,7 +81,7 @@
     </section>
 
     <section class="panel">
-      <div class="panel-title"><b><i>3</i> cover</b><span>under the mask</span></div>
+      <div class="panel-title"><b>cover</b><span>under the mask</span></div>
       <div class="seg" role="group" aria-label="What hides the face under the mask" id="underlay">
         <button type="button" aria-pressed="true" data-value="pixelate">pixels</button>
         <button type="button" aria-pressed="false" data-value="solid">paint</button>
@@ -99,7 +95,7 @@
     </section>
 
     <section class="panel">
-      <div class="panel-title"><b><i>4</i> save</b><span>keep it</span></div>
+      <div class="panel-title"><b>save</b><span>keep it</span></div>
       <button type="button" class="key primary wide" data-do="export" disabled>export video</button>
       <div class="keys-row">
         <button type="button" class="key ink" data-do="record" disabled><span class="dot"></span> <span class="label">record</span></button>
@@ -141,15 +137,13 @@
 
       <section class="panel guide" id="guide" hidden>
         <div class="panel-title"><b>guide</b><button type="button" class="key" id="guide-close" style="height:27px;font-size:9px">close</button></div>
-        <ol>
-          <li><i>1</i><span>open a video or start the camera. it all runs in this browser: nothing is uploaded.</span></li>
-          <li><i>2</i><span>pick a mask, or drop your own .glb head model on the page.</span></li>
-          <li><i>3</i><span>choose what hides the face under the mask. a gap in a mask then shows that, never skin.</span></li>
-          <li><i>4</i><span>export writes the file again with a mask on every frame and keeps the sound. record saves what you see.</span></li>
-        </ol>
+        <p>open a video or start the camera. it all runs in this browser: nothing is uploaded.</p>
+        <p>pick a mask, or drop your own .glb head model on the page.</p>
+        <p>cover is what hides the face under the mask. a gap in a mask then shows that, never skin.</p>
+        <p>export writes the file again with a mask on every frame and keeps the sound. record saves what you see.</p>
         <p><i class="led on"></i>lock is green while the face is tracked, and <i class="led p on"></i>violet while the mask follows the head from the body, in profile or turned away.</p>
         <p>if a head that was just there cannot be found, the whole picture is hidden until it is.</p>
-        <p>console has the fit of each mask: size, place, turn and stretch, and fit by points for a model of your own.</p>
+        <p>fit, on the right, is the size, place, turn and stretch of each mask, and fit by points for a model of your own.</p>
         <p>watch an export through once before you publish it.</p>
       </section>
     </div>

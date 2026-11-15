@@ -20,7 +20,7 @@ const all = (sel) => [...document.querySelectorAll(sel)];
 const els = {
   video: $('video'), out: $('out'), monitor: $('monitor'), empty: $('empty'),
   status: $('status-line'), ledLive: $('led-live'), ledLock: $('led-lock'), ledRec: $('led-rec'),
-  mode: $('mode'), pause: $('pause'), guideKey: $('guide-key'), guide: $('guide'), guideClose: $('guide-close'),
+  pause: $('pause'), guideKey: $('guide-key'), guide: $('guide'), guideClose: $('guide-close'),
   camera: $('camera'), emptyCamera: $('empty-camera'), cameraSelect: $('camera-select'), mirror: $('mirror'),
   fileInput: $('file-input'), masks: $('masks'), importBtn: $('import'), glbInput: $('glb-input'),
   showMask: $('show-mask'), maskHint: $('mask-hint'),
@@ -44,7 +44,7 @@ const token = (name) => getComputedStyle(document.body).getPropertyValue(name).t
 stage.setPalette({ accent: token('--accent'), accent2: token('--accent2'), stage: token('--stage') });
 
 const prefs = store.load('prefs', {
-  mask: 'satyr', underlay: 'pixelate', margin: 1, strict: true, people: 1, look: 'none', keepAudio: true, showMask: true, mode: 'easy',
+  mask: 'satyr', underlay: 'pixelate', margin: 1, strict: true, people: 1, look: 'none', keepAudio: true, showMask: true,
 });
 const fits = store.load('fits', {});
 const masks = [satyr, helm, bag];
@@ -144,7 +144,7 @@ function selectMask(id) {
   stage.setMask(m);
   renderMaskList();
   els.maskHint.textContent = m.kind === 'glb'
-    ? `${m.note.toLowerCase()}. size and place it in console, under fit`
+    ? `${m.note.toLowerCase()}. size and place it under fit, on the right`
     : 'or drop a .glb head model anywhere';
   applyFit({ quiet: true });
 }
@@ -167,7 +167,6 @@ async function importGlb(file) {
       await store.keepMask({ id, name, buffer });
     }
     selectMask(id);
-    setMode('console'); // a model of your own needs fitting, and the fit is in console
     toast(`added ${name}`);
   } catch (err) {
     console.error(err);
@@ -570,14 +569,6 @@ for (const el of els.pins.children) {
 
 // ---------------------------------------------------------------- controls
 
-function setMode(mode) {
-  document.body.dataset.mode = mode;
-  setSeg(els.mode, mode);
-  savePref('mode', mode);
-  requestAnimationFrame(() => { if (state.calibrating) placePins(); });
-}
-bindSeg(els.mode, setMode);
-
 function showGuide(on) {
   els.guide.hidden = !on;
   els.guideKey.setAttribute('aria-expanded', String(on));
@@ -678,7 +669,6 @@ async function init() {
   els.marginVal.textContent = Number(prefs.margin).toFixed(2);
   els.look.value = prefs.look;
   els.people.value = String(prefs.people);
-  setMode(prefs.mode === 'console' ? 'console' : 'easy');
 
   for (const saved of await store.savedMasks()) {
     try { masks.push(await loadGlbMask(saved.buffer, saved.name, saved.id)); } catch (err) { console.warn('[mask-layer] saved mask unreadable:', saved.name, err); }

@@ -18,7 +18,6 @@ await page.screenshot({ path: `${outDir}/0-empty.png` });
 await page.setInputFiles('#glb-input', glb);
 await page.waitForFunction(() => document.querySelectorAll('.tile').length === 4);
 console.log('masks:', await page.$$eval('.tile', (els) => els.map((e) => e.innerText.trim())), '|', await page.textContent('#mask-hint'));
-console.log('mode after import:', await page.getAttribute('body', 'data-mode'));
 console.log('coverage:', await page.textContent('#coverage'));
 
 await page.setInputFiles('#file-input', video);

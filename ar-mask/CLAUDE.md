@@ -29,7 +29,7 @@ node scripts/make-icons.mjs    # the six icon files from public/favicon.svg (nee
 ## Folder map
 
 ```
-index.html                    the page: head (titles, link preview, icons), top bar, steps, stage, console
+index.html                    the page: head (titles, link preview, icons), top bar, left column, stage, right column
 src/main.js                   wiring: sources, controls, status line and lights, fit by points
 src/family.css                kit/family.css from the JAS.BLACK blueprint, unchanged. Tokens and shared components
 src/family.js                 kit/family.js as a module (one difference, noted at the top of the file)
@@ -49,8 +49,11 @@ tests/                        Playwright scripts, see below
 
 ## Design
 
-Built on the JAS.BLACK family blueprint: console layout (top bar; numbered steps 268 px; stage; console column
-282 px), `easy | console`, tokens from `family.css`, Archivo 800 for the title only, IBM Plex Mono for the rest.
+Built on the JAS.BLACK family blueprint: console layout (top bar; left column 268 px; stage; right column
+282 px), tokens from `family.css`, Archivo 800 for the title only, IBM Plex Mono for the rest.
+
+- No `easy | console` switch and no numbered steps: the owner asked for the full console only, with plain panel
+  titles. Both columns always show. Do not put them back.
 
 - Do not add colours. Everything in `mask.css` uses the family's tokens; the two literals it has (`#0b0b0c` text
   on green, the LED glow) are the same ones `family.css` uses for those parts.
