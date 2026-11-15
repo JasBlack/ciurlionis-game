@@ -39,8 +39,10 @@ for (const [name, url] of Object.entries(MODELS)) {
     await writeFile(to, buf);
     console.log(`[assets] ${name}: ${(buf.length / 1e6).toFixed(1)} MB`);
   } catch (err) {
-    // Not fatal: the app falls back to loading the model from Google's model host in the browser.
     console.warn(`[assets] could not download ${name} (${err.message}).`);
     console.warn(`         Run "npm run assets" again later, or save ${url}\n         as public/models/${name}`);
+    // On your own computer this is not fatal: the app falls back to loading the model from Google's model host
+    // in the browser. A published site must carry its own copy, so on CI it stops the build.
+    if (process.env.CI) process.exitCode = 1;
   }
 }

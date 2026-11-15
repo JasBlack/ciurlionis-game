@@ -1,0 +1,49 @@
+# Builds Mask Layer and publishes it on GitHub Pages.
+#
+# While ar-mask/ is a folder inside another repository this file does nothing: GitHub only reads workflows from
+# the top of a repository. It starts working when the contents of this folder become a repository of their own.
+#
+# Settings -> Pages -> Source must be "GitHub Actions", and Custom domain "mask.jas.black" with Enforce HTTPS on:
+# browsers only allow the camera on https.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # npm ci also copies the tracker's runtime and downloads its two models into public/ (scripts/fetch-assets.mjs).
+      # On CI a model that cannot be downloaded fails the build, so the site never goes out without its own copy.
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

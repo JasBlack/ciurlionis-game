@@ -27,6 +27,21 @@ Then open `http://localhost:5420` in Chrome or Edge. `npm install` also copies t
 `npm run build` writes a static site to `dist/` that can be served from any folder of any web server. The camera
 needs `https://` or `localhost`.
 
+## Host it
+
+It is a static site with no server side, so it can be published on GitHub Pages like any other. Hosted, it still
+does all its work in the visitor's browser: the page, the tracker and the models are downloaded once (about 28 MB,
+then cached), and no video goes back.
+
+GitHub Pages gives one site and one address per repository, so `mask.jas.black` needs a repository of its own:
+
+1. Create an empty repository and put the contents of this folder at its top (not the folder itself). The
+   workflow in `.github/workflows/pages.yml` and the `CNAME` file come with it.
+2. In the repository: Settings, Pages, Source "GitHub Actions". Custom domain `mask.jas.black`, and once the
+   certificate is issued, Enforce HTTPS.
+3. At the DNS host for `jas.black`: a `CNAME` record for `mask` pointing at `jasblack.github.io`.
+4. Push to `main`. The workflow installs, downloads the models, builds and publishes.
+
 ## What it does
 
 - **Source**: your camera, or a video file dropped on the page.
